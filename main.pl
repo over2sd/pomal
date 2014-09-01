@@ -19,9 +19,7 @@ use Export;
 use PGUI;
 
 print "\nStarting GUI...\n";
-my $mainwin = PGUI::createWindow();
-
-
+my %gui = PGUI::createMainWin();
 
 Gtk2->main();
 print "Oops... not finished coding this. Exiting normally.\n";
