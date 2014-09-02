@@ -57,34 +57,49 @@ sub buildMenus {
 	### ItemFactory (and therefore SimpleMenu) is deprecated, so back to the drawing board...
 	if($menus == 0) {
 		my ($mainwin,$ag) = @_;
-		
+
 		$menus = Gtk2::MenuBar->new();
 #		File >
-		my $itemF = Gtk2::MenuItem->new("_File");
-		$itemF->show();
-		$menus->append($itemF);
-		my $f = Gtk2::Menu->new();
-		$f->set_accel_group($ag);
-		$f->show();
-		$itemF->set_submenu($f);
+		my ($itemF,$f) = itemize("_File",$menus,$ag);
 #		File > Import
+		my $itemFI = itemize("_Import",$f);
 #		File > Export
+		my $itemFE = itemize("_Export",$f);
 #		File > Synchronize
+		my $itemFS = itemize("_Synchronize",$f);
 #		File > Preferences
+		my $itemFP = itemize("_Preferences",$f);
 #		File > Quit
-		my $itemFQ = Gtk2::MenuItem->new("_Quit");
-		$itemFQ->show();
+		my $itemFQ = itemize("_Quit",$f);
 #		my ($k,$m);
 #		Gtk2::accelerator_parse("<Control>Q",$k,$m); # can't find docs on how to call this properly.
 #		$itemFQ->add_accelerator("activate",$ag,$k,$m,'ACCEL_VISIBLE');
-		$f->append($itemFQ);
 		$itemFQ->signal_connect("activate",\&storeWindowExit,$mainwin);
-
 #		Help >
+		my ($itemH,$h) = itemize("_Help",$menus,$ag);
 #		Help > About
+		my $itemHA = itemize("_About",$h);
 
 	}
 	return $menus;
+}
+print ".";
+
+sub itemize { # menu item, that is...
+	my ($label,$parent,$group) = @_;
+	print "itemize(@_)\n";
+	my $a = Gtk2::MenuItem->new($label);
+	my $b = undef;
+	$a->show();
+	$parent->append($a);
+	if (defined $group) {
+		$b = Gtk2::Menu->new();
+		$b->set_accel_group($group);
+		$b->show();
+		$a->set_submenu($b);
+		return $a,$b;
+	}
+	return $a;
 }
 print ".";
 
