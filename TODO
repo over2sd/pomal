@@ -1,0 +1,12 @@
+### Guidance ###
+
+Start with critical functions. Leave added functionality for after I can click and have an episode I've watched recorded.
+Everything else can wait.
+
+Stuff that can wait:
+Episode voting
+Episode name recording
+metadata functions
+Next episode suggestion - looks at your DB and suggests three shows to watch next, weighting Watching shows by percentage progress, completed shows by rewatch value and # of times rewatched (tails better than bell), and other shows by length?
+Option: display last episode watched, or next episode to watch?
+Detect movies and put them on their own notebook tab
