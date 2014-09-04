@@ -1,7 +1,7 @@
 Pomal
 =====
 
-Personal Offline Manga/Amime List
+Personal Offline Manga/Anime List
 
 -------
 

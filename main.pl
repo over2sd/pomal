@@ -22,7 +22,7 @@ my ($splash,$text,$prog) = PGUI::createSplash();
 
 $splash->present();
 # do stuff using this window...
-# loadStuffWithSplashDetail($text,$prog);
+#my ($dbh) = PGUI::loadDBWithSplashDetail($text,$prog);
 #$splash->destroy();
 print "\nStarting GUI...\n";
 my %gui = PGUI::createMainWin();

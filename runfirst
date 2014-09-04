@@ -1,0 +1,74 @@
+#!/bin/bash
+set -e
+
+### Username of the database administrator
+user=`whoami`
+
+### Hostname of the DBA's access computer
+	# Use output of hostname function
+# host=`hostname`
+	# Use localhost
+host=localhost
+	# Use a specific host
+# host=192.168.1.10
+	# Allow from anywhere (not recommended)
+# host="%"
+
+### Database host server
+server=127.0.0.1
+
+### Database server options. For example, if your username rquires
+###  a MySQL password, or your server uses a nonstandard port number.
+	# Ask for password
+# options=-p
+	# Use this as a password
+# options=-P badpassword1234
+	# Use the first argument as a password
+# options=-p $1
+	# Other options
+# options=""
+
+### Delete existing database? (For debugging purposes)
+delold=0
+
+### Change this to 1 when you've edited these variables
+edited=0
+
+### Do not edit anything below this line. ###
+### If the above values are correct, change 'edited' to 1. ###
+####################### STOP EDITING HERE ####################
+case $edited in
+	0)
+		echo -e "\n*** Warning: You need to verify the variables before setting up CCOW. ***\n"
+		echo "This script currently has these settings:"
+		echo "  The database owner (you?) will be this user: $user"
+		echo "  You'll connect to your database from this host: ${host}"
+		echo "  The server is at this host: $server"
+		if [ $delold -eq 1 ]
+		then
+			echo "  Runfirst will delete the old POMAL database."
+		fi
+		echo "  If these are correct, change 'edited' to 1"
+		echo -e "\n** Perhaps 'pico runfirst'? **\n"
+		exit 0
+		;;
+	1)
+		read -s -p "Please enter the SQL root password: " sqlpass
+		;;
+esac
+
+echo "Attempting setup..."
+echo "GRANT ALL ON pomal.* TO '${user}'@'${host}';" > rootset.msq
+case $delold in
+	0)
+		# Assuming database does not exist.
+		;;
+	1)
+		echo -e "** Debug activity: Deleting old database! **"
+		echo "DROP DATABASE pomal;" >> rootset.msq
+		;;
+esac
+
+# echo "The following prompt refers to the MySQL root password, not the system root password:"
+mysql -h $server -u root --password=${sqlpass} < rootset.msq
+echo "Done."
