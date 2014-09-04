@@ -10,3 +10,4 @@ metadata functions
 Next episode suggestion - looks at your DB and suggests three shows to watch next, weighting Watching shows by percentage progress, completed shows by rewatch value and # of times rewatched (tails better than bell), and other shows by length?
 Option: display last episode watched, or next episode to watch?
 Detect movies and put them on their own notebook tab
+Sanity checking for all input values, specifically those expect to be between, e.g., 0..10.
