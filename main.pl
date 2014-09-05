@@ -18,13 +18,8 @@ use Export;
 
 use PGUI;
 
-my ($splash,$text,$prog) = PGUI::createSplash();
-
-$splash->present();
-# do stuff using this window...
-#my ($dbh) = PGUI::loadDBWithSplashDetail($text,$prog);
-#$splash->destroy();
+my ($dbh) = PGUI::loadDBwithSplashDetail();
 print "\nStarting GUI...\n";
-my %gui = PGUI::createMainWin();
+my %gui = PGUI::createMainWin($dbh);
 Gtk2->main();
 print "Oops... not finished coding this. Exiting normally.\n";

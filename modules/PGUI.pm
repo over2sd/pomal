@@ -30,11 +30,11 @@ sub createSplash {
 	# if the database doesn't exist, try to create it.
 	# or if user has chosen to use flatfile, import the XML.
 	$window->show_all();
-	return $window,$splashdetail,$progress;
+	return $window,$splashdetail,$progress,$vb;
 }
 
 sub createMainWin {
-	my ($w,$h) = @_;
+	my ($dbh,$w,$h) = @_;
 	my %windowset;
 	my $window = Gtk2::Window->new();
 	$window->set_title("PersonalOfflineManga/AnimeList");
@@ -79,7 +79,6 @@ print ".";
 
 my $menus = undef;
 sub buildMenus {
-	### ItemFactory (and therefore SimpleMenu) is deprecated, so back to the drawing board...
 	unless(defined $menus) {
 		my ($mainwin,$ag) = @_;
 
@@ -155,6 +154,59 @@ sub storeWindowExit {
 		print "Not storing window position.";
 	}
 	Gtkdie();
+}
+print ".";
+
+sub loadDBwithSplashDetail {
+	my ($splash,$text,$prog,$box) = createSplash();
+	my $steps = 10;
+	my $step = 0;
+	my $base = "";
+	$splash->present();
+	$text->push(0,"Loading database config...");
+	$prog->set_fraction(++$step/$steps);
+	unless (defined config('DB','type')) {
+		$text->push(0,"Getting settings from user...");
+		$prog->set_fraction(++$step/$steps);
+		# ask user for database type
+		# unless type is SQLite:
+		# ask user for host
+		# ask user for SQL username, if needed by server (might not be, for localhost)
+		# ask user if password required
+		# push DB type back to config, as well as all other DB information, if applicable.
+	} else {
+		$base = config('DB','type');
+	}
+	my ($uname,$host,$pw) = (config('DB','user',undef),config('DB','host',undef),config('DB','password',0));
+	# ask for password, if needed.
+	my $passwd = ($pw ? askPass($splash) : undef);
+	$text->push(0,"Connecting to database...");
+	$prog->set_fraction(++$step/$steps);
+	my ($dbh,$error) = PomalSQL::getDB($base,$host,'pomal',$passwd,$uname);
+	unless (defined $dbh) { # error handling
+		dieWithErrorbox($splash,$error);
+	}
+	# do stuff using this window...
+	#$splash->destroy();
+	return $dbh;
+}
+print ".";
+
+sub askPass {
+	my $caller = shift;
+	# ask user for password, pass result back to caller
+print "TODO: code askPass\n";
+#$caller->destroy();
+#exit(-1);
+}
+print ".";
+
+sub dieWithErrorbox {
+	my ($caller,$text) = @_;
+	# display an error box. When user has pressed OK, kill caller and exit.
+	# for now...
+print "I am slain: $text\n";
+	exit(0);
 }
 print ".";
 

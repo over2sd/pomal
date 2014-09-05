@@ -33,7 +33,7 @@ sub new {
 		watched_episode => 0,
 		started_date => "",
 		finished_date => "", # also valid for drop date
-		metadata => {},
+		metadata => {}, # not currently stored anywhere
 		title_score => 0,
 		obj_content => 0, # bitwise mask; described in Common.pm
 		min_age => 0,
