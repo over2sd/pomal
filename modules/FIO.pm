@@ -6,8 +6,6 @@ use Exporter;
 print __PACKAGE__;
 
 my $cfg = Config::IniFiles->new();
-my $configfilename = "config.ini";
-$cfg->SetFileName($configfilename);
 
 sub config {
 	my ($section,$key,$value) = @_;
@@ -20,7 +18,6 @@ sub config {
 		}
 	} else {
 		if (defined $cfg->val($section,$key,undef)) {
-			print "o";
 			return $cfg->setval($section,$key,$value);
 		} else {
 			return $cfg->newval($section,$key,$value);
@@ -48,11 +45,17 @@ sub saveConf {
 }
 print ".";
 
-print " is seeking configuration file...";
-if ( -s $configfilename ) {
-	print "found. Loading...";
-	$cfg->ReadConfig();
+sub loadConf {
+	my $configfilename = shift || "config.ini";
+	$cfg->SetFileName($configfilename);
+	print "Seeking configuration file...";
+	if ( -s $configfilename ) {
+		print "found. Loading...";
+		$cfg->ReadConfig();
+	}
+	validateConfig();
 }
-validateConfig();
+print ".";
 
+print " OK; ";
 1;

@@ -39,7 +39,7 @@ edited=0
 ####################### STOP EDITING HERE ####################
 case $edited in
 	0)
-		echo -e "\n*** Warning: You need to verify the variables before setting up CCOW. ***\n"
+		echo -e "\n*** Warning: You need to verify the variables before setting up POMAL. ***\n"
 		echo "This script currently has these settings:"
 		echo "  The database owner (you?) will be this user: $user"
 		echo "  You'll connect to your database from this host: ${host}"

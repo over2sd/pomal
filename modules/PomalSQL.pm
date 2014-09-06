@@ -17,7 +17,7 @@ sub getDB {
 		my $host = shift || 'localhost';
 		my $base = shift || 'pomal';
 		my $password = shift || '';
-		my $username = shift || $ENV{LOGNAME} || $ENV{USER} || getpwuid($<); # try to get username by various means if not passed it.
+		my $username = shift || whoAmI();
 		# connect to the database
 		if ($password ne '') {
 			$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
@@ -40,9 +40,74 @@ sub closeDB {
 }
 print ".";
 
+sub whoAmI {
+	return $ENV{LOGNAME} || $ENV{USER} || getpwuid($<); # try to get username by various means if not passed it.
+}
+print ".";
+
 # functions for creating database
+sub makeDB {
+	my ($dbtype) = shift; # same prep work as regular connection...
+	my $host = shift || 'localhost';
+	my $base = shift || 'pomal';
+	my $password = shift || '';
+	my $username = shift || whoAmI();
+	use DBI;
+	my $dbh;
+	print "Creating database...";
+	if ($dbtype eq "L") { # for people without access to a SQL server
+		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
+		my $newbase = $dbh->quote_identifier($base); # just in case...
+		unless ($dbh->func("createdb", $newbase, 'admin')) { return undef,$DBI::errstr; }
+	} elsif ($dbtype eq "M") {
+		# connect to the database
+		if ($password ne '') {
+			$dbh = DBI->connect("DBI:mysql::$host",$username, $password) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		} else {
+			$dbh = DBI->connect("DBI:mysql::$host",$username) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		}
+		my $newbase = $dbh->quote_identifier($base); # just in case...
+		unless(doQuery(2,$dbh,"CREATE DATABASE $newbase")) { return undef,$DBI::errstr; }
+	}	
+	print "Database created.";
+	$dbh->disconnect();
+	if ($dbtype eq "L") { # for people without access to a SQL server
+		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
+	} elsif ($dbtype eq "M") {
+		# connect to the database
+		if ($password ne '') {
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		} else {
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		}
+	}
+	return $dbh,"OK";
+}
+print ".";
+
 sub makeTables { # used for first run
-	print "TODO: write a function to make tables.\n"; exit(-1);
+	my ($dbh) = shift; # same prep work as regular connection...
+	print "Creating tables...";
+	open(TABDEF, "<pomal.msq"); # open table definition file
+	my @cmds = <TABDEF>;
+	print "Importing " . scalar @cmds . " lines.";
+	foreach my $i (0 .. $#cmds) {
+		my $st = $cmds[$i];
+		if ('SQLite' eq $dbh->{Driver}->{Name}) {
+			$st =~ s/ UNSIGNED//g; # SQLite doesn't (properly) support unsigned?
+			$st =~ s/ AUTO_INCREMENT//g; #...or auto_increment?
+		}
+		my $error = doQuery(2,$dbh,$st);
+		print $i + 1 . ($error ? ": $st\n" : "" );
+		print ".";
+		if($error) { return undef,$error; }
+	}
+	my $st = qq(INSERT INTO series (sid,sname,lastwatched) VALUES(?,?,?););
+	return $dbh,"OK";
 }
 print ".";
 
@@ -50,7 +115,9 @@ print ".";
 sub doQuery {
 	my ($qtype,$dbh,$statement,@parms) = @_;
 	my $realq;
+#	print "Received '$statement'\n";
 	my $safeq = $dbh->prepare($statement);
+	unless (defined $safeq) { warn "Statement could not be prepared! Aborting statement!\n"; return undef; }
 	if($qtype == 0){ # expect a scalar
 		$realq = $safeq->execute(@parms);
 		unless ("$realq" eq "1") {
@@ -92,7 +159,9 @@ print ".";
 
 sub table_exists {
 	my ($dbh,$table) = @_;
-	my $result = doQuery(0,$dbh,qq(SHOW TABLES LIKE ?;),$table);
+	my $st = qq(SHOW TABLES LIKE ?;);
+	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT name FROM sqlite_master WHERE type='table' LIKE ?;); }
+	my $result = doQuery(0,$dbh,$st,$table);
 	return (length($result) == 0) ? 0 : 1;
 }
 print ".";

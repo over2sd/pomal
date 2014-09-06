@@ -37,6 +37,7 @@ sub createSplash {
 	$window->set_gravity('south-west');
 	$window->move(int((Gtk2::Gdk->screen_width()/2) - 150),int((Gtk2::Gdk->screen_height()/2) + 50));
 	$window->set_decorated(0);
+	$window->set_double_buffered(0);
 	my $title = Gtk2::Label->new("POMAL");
 	my $vb = Gtk2::VBox->new();
 	my $progress = Gtk2::ProgressBar->new();
@@ -178,13 +179,14 @@ print ".";
 
 sub loadDBwithSplashDetail {
 	my ($splash,$text,$prog,$box) = createSplash();
+	# do stuff using this window...
 	my $pulse = 0;
-	my $steps = 10;
+	my $steps = 4;
 	my $step = 0;
 	my $base = "";
-	$splash->present();
 	$text->push(0,"Loading database config...");
 	$prog->set_fraction(++$step/$steps);
+	$splash->present();
 	my $curstep = Gtk2::Label->new();
 	unless (defined config('DB','type')) {
 		$steps ++; # number of steps in type dialogue
@@ -220,7 +222,7 @@ sub loadDBwithSplashDetail {
 					exit(-3);
 				});
 			# while loop to wait for user response
-#		$splash->present();
+		$splash->present();
 		until (defined $dbtype) {
 			if ($pulse) { $prog->pulse(); }
 			Gtkwait(1);
@@ -233,11 +235,13 @@ sub loadDBwithSplashDetail {
 	} else {
 		$prog->set_fraction(++$step/$steps);
 		$base = config('DB','type');
+		$splash->present();
 	}
 	unless (defined config('DB','host')) {
+		$steps ++; # host
 		# unless type is SQLite:
 		unless ($base eq 'L') {
-			$steps ++; # number of steps in type dialogue
+			$steps ++; # type dialogue
 			$curstep->set_text("Enter database login info");
 			$text->push(0,"Getting login credentials...");
 			$prog->set_fraction(++$step/$steps); # 0
@@ -287,6 +291,7 @@ sub loadDBwithSplashDetail {
 			$login->show_all();
 			$euname->hide(); # hide unless needed
 			$pass->hide();
+			$splash->present();
 			while ($stop) {
 				if ($pulse) { $prog->pulse(); }
 				Gtkwait(1);
@@ -295,13 +300,16 @@ sub loadDBwithSplashDetail {
 			# save data from entry boxes...
 			$text->push(0,"Saving server info...");
 			$prog->set_fraction(++$step/$steps); # 1
+			$splash->present();
 			my ($uname,$host,$passwd) = (($umy->get_active() ? $euname->get_text() : undef),$ehost->get_text(),($pmy->get_active() ? 1 : 0));
 			config('DB','host',$host); config('DB','user',$uname); config('DB','password',$passwd);
 			# destroy login form
 			$login->destroy();
 		} else {
 			$text->push(0,"Using file as database...");
+			config('DB','host','localfile'); # to prevent going through this branch every time
 			$prog->set_fraction(++$step/$steps); # 0a
+			$splash->present();
 		}
 		FIO::saveConf();
 	}
@@ -310,12 +318,14 @@ sub loadDBwithSplashDetail {
 	my $passwd = ($pw ? undef : askPass($box,$uname,$host));
 	$text->push(0,"Connecting to database...");
 	$prog->set_fraction(++$step/$steps);
+	$splash->present();
 	my ($dbh,$error) = PomalSQL::getDB($base,$host,'pomal',$passwd,$uname);
 	if ($error =~ m/Unknown database/) { # rudimentary detection of first run
 		$steps++;
 		$text->push(0,"Attempting to initialize database...");
 		$prog->set_fraction(++$step/$steps);
-#		($dbh,$error) = PomalSQL::makeTables($base,$host,$passwd,$uname);
+		$splash->present();
+		($dbh,$error) = PomalSQL::makeDB($base,$host,'pomal',$passwd,$uname);
 	}
 	unless (defined $dbh) { # error handling
 		sayBox($splash,$error);
@@ -323,8 +333,18 @@ sub loadDBwithSplashDetail {
 		print "Exiting.\n";
 		exit(-2);
 	}
-	# do stuff using this window...
+	unless (PomalSQL::table_exists($dbh,'tags')) {
+		$steps++;
+		$prog->set_fraction(++$step/$steps);
+		$text->push(0,"Attempting to initialize database tables...");
+		$splash->present();
+		PomalSQL::makeTables($dbh);
+	}
+	$text->push(0,"Done.");
+	$prog->set_fraction(++$step/$steps);
+	$splash->present();
 	$splash->destroy();
+	print "Splash screen steps: $step/$steps\n";
 	return $dbh;
 }
 print ".";
