@@ -1,5 +1,6 @@
 # Graphic User Interface module
 package PGUI;
+print __PACKAGE__;
 
 use Gtk2 -init; # requires GTK perl bindings
 
@@ -10,13 +11,31 @@ sub config { return FIO::config(@_); }
 sub Gtkdie {
 	print "I am slain.\n";
 	Gtk2->main_quit;
+	exit(shift or 0);
+}
+print ".";
+
+sub Gtkwait {
+	my $duration = shift or 1;
+	my $start = time();
+	my $end = ($start+$duration);
+	while ($end > time()) {
+		while (Gtk2->events_pending()) {
+			Gtk2->main_iteration();
+		}
+		# 10ms sleep.
+		# Not much, but prevents processor spin without making waiting dialogs unresponsive.
+		select(undef,undef,undef,0.01);
+	}
+	return 0;
 }
 print ".";
 
 sub createSplash {
 	my $window = Gtk2::Window->new();
 	$window->set_default_size(300,100);
-	$window->move(int((Gtk2::Gdk->screen_width()/2) - 150),int((Gtk2::Gdk->screen_height()/2) - 50));
+	$window->set_gravity('south-west');
+	$window->move(int((Gtk2::Gdk->screen_width()/2) - 150),int((Gtk2::Gdk->screen_height()/2) + 50));
 	$window->set_decorated(0);
 	my $title = Gtk2::Label->new("POMAL");
 	my $vb = Gtk2::VBox->new();
@@ -159,56 +178,221 @@ print ".";
 
 sub loadDBwithSplashDetail {
 	my ($splash,$text,$prog,$box) = createSplash();
+	my $pulse = 0;
 	my $steps = 10;
 	my $step = 0;
 	my $base = "";
 	$splash->present();
 	$text->push(0,"Loading database config...");
 	$prog->set_fraction(++$step/$steps);
+	my $curstep = Gtk2::Label->new();
 	unless (defined config('DB','type')) {
+		$steps ++; # number of steps in type dialogue
+		my $dbtype = undef;
 		$text->push(0,"Getting settings from user...");
-		$prog->set_fraction(++$step/$steps);
+		$prog->set_fraction(++$step/$steps); # 0 (matches else)
+		$curstep->set_text("Choose database type (or Quit)");
+		$curstep->show();
+		$box->pack_start($curstep,0,0,2);
 		# ask user for database type
-		# unless type is SQLite:
-		# ask user for host
-		# ask user for SQL username, if needed by server (might not be, for localhost)
-		# ask user if password required
+		my $hb = Gtk2::HBox->new();
+		$hb->show();
+		$box->pack_start($hb,0,0,2);
+			# buttons for choices
+		my $but_m = Gtk2::Button->new("MySQL");
+		my $but_l = Gtk2::Button->new("SQLite");
+		my $but_q = Gtk2::Button->new("Quit");
+		$but_m->show();
+		$hb->pack_start($but_m,0,0,2);
+		$but_l->show();
+		$hb->pack_start($but_l,0,0,2);
+		$but_q->show();
+		$hb->pack_start($but_q,0,0,2);
+			# tooltips for buttons
+		$but_m->set_tooltip_text("Use if you have a MySQL database.");
+		$but_l->set_tooltip_text("Use if you can't use MySQL.");
+		$but_q->set_tooltip_text("Abort loading the program (until you set up your database?)");
+			# signals for buttons
+		$but_m->signal_connect("clicked",\&setKill,[$hb,\$dbtype,'M']);
+		$but_l->signal_connect("clicked",\&setKill,[$hb,\$dbtype,'L']);
+		$but_q->signal_connect("clicked", sub { $splash->destroy();
+					print "Exiting (abort).\n";
+					exit(-3);
+				});
+			# while loop to wait for user response
+#		$splash->present();
+		until (defined $dbtype) {
+			if ($pulse) { $prog->pulse(); }
+			Gtkwait(1);
+		}
+		$text->push(0,"Saving database type...");
+		$prog->set_fraction(++$step/$steps);
 		# push DB type back to config, as well as all other DB information, if applicable.
+		config('DB','type',$dbtype);
+		$base = $dbtype;
 	} else {
+		$prog->set_fraction(++$step/$steps);
 		$base = config('DB','type');
+	}
+	unless (defined config('DB','host')) {
+		# unless type is SQLite:
+		unless ($base eq 'L') {
+			$steps ++; # number of steps in type dialogue
+			$curstep->set_text("Enter database login info");
+			$text->push(0,"Getting login credentials...");
+			$prog->set_fraction(++$step/$steps); # 0
+			my $stop = 1;
+			my $login = Gtk2::VBox->new();
+			$box->pack_start($login,0,0,3);
+		# ask user for host
+			my $hl = Gtk2::Label->new("Server address:");
+			my $ehost = Gtk2::Entry->new();
+		# ask user for SQL username, if needed by server (might not be, for localhost)
+			my $euname = Gtk2::Entry->new();
+		# ask user if username required
+			my $uml = Gtk2::Label->new("Username required?");
+			my $umy = Gtk2::RadioButton->new_with_label(undef,"Yes");
+			my $umn = Gtk2::RadioButton->new_with_label_from_widget($umy,"No");
+			$umn->set_active(1);
+			$umy->signal_connect("toggled",\&setVis,[$euname,1]);
+			$umn->signal_connect("toggled",\&setVis,[$euname,0]);
+			my $umb = Gtk2::HBox->new();
+			$umb->pack_start($umn,0,0,1);
+			$umb->pack_start($umy,0,0,1);
+			$umb->pack_start($euname,1,0,2);
+			$umb->show_all();
+		# ask user if password required
+			my $pass = Gtk2::Label->new("I'll ask on connect");
+			my $pml = Gtk2::Label->new("Password required?");
+			my $pmy = Gtk2::RadioButton->new_with_label(undef,"Yes");
+			my $pmn = Gtk2::RadioButton->new_with_label_from_widget($pmy,"No");
+			$pmn->set_active(1);
+			$pmy->signal_connect("toggled",\&setVis,[$pass,1]);
+			$pmn->signal_connect("toggled",\&setVis,[$pass,0]);
+			my $pmb = Gtk2::HBox->new();
+			$pmb->pack_start($pmn,0,0,1);
+			$pmb->pack_start($pmy,0,0,1);
+			$pmb->pack_start($pass,1,0,2);
+			$pmb->show_all();
+			my $submit = Gtk2::Button->new("Submit");
+			$submit->signal_connect("clicked",sub { $stop = 0; });
+		# wait for user responses
+			$login->pack_start($hl,0,0,1);
+			$login->pack_start($ehost,1,0,4);
+			$login->pack_start($uml,0,0,1);
+			$login->pack_start($umb,1,0,4);
+			$login->pack_start($pml,0,0,1);
+			$login->pack_start($pmb,1,0,4);
+			$login->pack_start($submit,1,0,1);
+			$login->show_all();
+			$euname->hide(); # hide unless needed
+			$pass->hide();
+			while ($stop) {
+				if ($pulse) { $prog->pulse(); }
+				Gtkwait(1);
+			}
+			$curstep->set_text("---");
+			# save data from entry boxes...
+			$text->push(0,"Saving server info...");
+			$prog->set_fraction(++$step/$steps); # 1
+			my ($uname,$host,$passwd) = (($umy->get_active() ? $euname->get_text() : undef),$ehost->get_text(),($pmy->get_active() ? 1 : 0));
+			config('DB','host',$host); config('DB','user',$uname); config('DB','password',$passwd);
+			# destroy login form
+			$login->destroy();
+		} else {
+			$text->push(0,"Using file as database...");
+			$prog->set_fraction(++$step/$steps); # 0a
+		}
+		FIO::saveConf();
 	}
 	my ($uname,$host,$pw) = (config('DB','user',undef),config('DB','host',undef),config('DB','password',0));
 	# ask for password, if needed.
-	my $passwd = ($pw ? askPass($splash) : undef);
+	my $passwd = ($pw ? undef : askPass($box,$uname,$host));
 	$text->push(0,"Connecting to database...");
 	$prog->set_fraction(++$step/$steps);
 	my ($dbh,$error) = PomalSQL::getDB($base,$host,'pomal',$passwd,$uname);
+	if ($error =~ m/Unknown database/) { # rudimentary detection of first run
+		$steps++;
+		$text->push(0,"Attempting to initialize database...");
+		$prog->set_fraction(++$step/$steps);
+#		($dbh,$error) = PomalSQL::makeTables($base,$host,$passwd,$uname);
+	}
 	unless (defined $dbh) { # error handling
-		dieWithErrorbox($splash,$error);
+		sayBox($splash,$error);
+		$splash->destroy();
+		print "Exiting.\n";
+		exit(-2);
 	}
 	# do stuff using this window...
-	#$splash->destroy();
+	$splash->destroy();
 	return $dbh;
 }
 print ".";
 
 sub askPass {
-	my $caller = shift;
-	# ask user for password, pass result back to caller
-print "TODO: code askPass\n";
-#$caller->destroy();
-#exit(-1);
+	my ($parent,$u,$h) = @_;
+	my $pw = undef;
+	my $stop = 1;
+	# make box and label and entry and button
+	my $vb = Gtk2::VBox->new();
+	my $lab = Gtk2::Label->new("Enter password for $u\@$h:");
+	my $pass = Gtk2::Entry->new();
+	my $but = Gtk2::Button->new("Submit");
+	$but->signal_connect("clicked",sub { $stop = 0; });
+	$pass->set_visibility(0); # entry must be set to make stars for safe password
+	$pass->signal_connect("activate",sub { $but->clicked(); }); # press Enter clicks button
+	# put label and entry and button in box, and box in parent
+	$vb->pack_start($lab,1,0,3);
+	$vb->pack_start($pass,1,0,3);
+	$vb->pack_start($but,1,0,3);
+	$parent->pack_start($vb,1,1,2);
+	$vb->show_all();
+	while ($stop) {
+		Gtkwait(1);
+	}
+	$pw = $pass->get_text(); # read pw from entry
+	$vb->destroy(); # destroy box
+	return $pw;
+}
+print ".";
+
+sub setKill {
+	my ($caller,$dataset) = @_;
+	my ($victim,$scalarref,$value) = @$dataset;
+	$$scalarref = $value;
+	$victim->destroy();
+}
+print ".";
+
+sub setVis {
+	my ($caller,$dataset) = @_;
+	my ($target,$vis) = @$dataset;
+	($vis ? $target->show() : $target->hide());
 }
 print ".";
 
 sub dieWithErrorbox {
 	my ($caller,$text) = @_;
 	# display an error box. When user has pressed OK, kill caller and exit.
-	# for now...
-print "I am slain: $text\n";
-	exit(0);
+	sayBox($caller,$text);
+	$caller->destroy();
+	Gtkdie(-2);
 }
 print ".";
 
-print __PACKAGE__ . " OK; ";
+sub sayBox {
+	my ($parent,$text) = @_;
+	my $askbox = Gtk2::MessageDialog->new($parent,[qw/modal destroy-with-parent/],'question','ok',sprintf $text);
+#	$askbox->set_markup($text);
+	my ($width,$height) = $askbox->get_size();
+	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # to prevent pop-shift of window
+	$askbox->show_all();
+	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # in case it didn't work before display
+	$askbox->run();
+	$askbox->destroy();
+	return 0;
+}
+print ".";
+
+print " OK; ";
 1;

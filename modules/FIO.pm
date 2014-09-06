@@ -3,6 +3,8 @@ package FIO;
 use Config::IniFiles;
 use Exporter;
 @EXPORT = qw( config saveConf );
+print __PACKAGE__;
+
 my $cfg = Config::IniFiles->new();
 my $configfilename = "config.ini";
 $cfg->SetFileName($configfilename);
@@ -46,7 +48,7 @@ sub saveConf {
 }
 print ".";
 
-print __PACKAGE__ . " is seeking configuration file...";
+print " is seeking configuration file...";
 if ( -s $configfilename ) {
 	print "found. Loading...";
 	$cfg->ReadConfig();

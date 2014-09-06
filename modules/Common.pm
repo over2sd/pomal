@@ -1,5 +1,5 @@
 package Common;
-
+print __PACKAGE__;
 my @obj = qw( nudity violence language sex brutality blasphemy horror nihilism theology occult superpowers rape fanservice drugs hentai gambling war discrimination );
 my %objindex;
 @objindex{@obj} = (0..$#obj);
@@ -60,5 +60,5 @@ sub get {
 }
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;

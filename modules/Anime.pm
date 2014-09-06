@@ -1,3 +1,4 @@
+print "Anime";
 ################################ Episode Object ################################
 package Episode;
 
@@ -147,5 +148,5 @@ print ".";
 package Anime;
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;

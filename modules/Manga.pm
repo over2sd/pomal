@@ -1,3 +1,4 @@
+print "Manga";
 use warnings;
 use strict;
 
@@ -17,5 +18,5 @@ print ".";
 package Manga;
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;

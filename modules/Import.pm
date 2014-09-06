@@ -1,6 +1,8 @@
 # module(s) for importing XML/CSV/etc. data from other sources
 package Import;
+print __PACKAGE__;
+
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;

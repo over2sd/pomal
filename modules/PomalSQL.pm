@@ -1,6 +1,6 @@
 # Module for MySQL database interactions (other DBs may be added later)
 package PomalSQL;
-print ".";
+print __PACKAGE__;
 
 require Exporter;
 @ISA = qw(Exporter);
@@ -19,8 +19,13 @@ sub getDB {
 		my $password = shift || '';
 		my $username = shift || $ENV{LOGNAME} || $ENV{USER} || getpwuid($<); # try to get username by various means if not passed it.
 		# connect to the database
-		$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
-			return undef, qq{DBI error from connect: "$DBI::errstr"};
+		if ($password ne '') {
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		} else {
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username) ||
+				return undef, qq{DBI error from connect: "$DBI::errstr"};
+		}
 	} else { #bad/no DB type
 		return undef,"Bad/no DB type passed to getDB! (" . ($dbtype or "undef") . ")";
 	}
@@ -92,5 +97,5 @@ sub table_exists {
 }
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;

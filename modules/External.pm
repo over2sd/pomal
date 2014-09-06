@@ -7,7 +7,9 @@
 
 ####### General Functions #######
 package External;
+print __PACKAGE__;
+
 print ".";
 
-print __PACKAGE__ . " OK; ";
+print " OK; ";
 1;
