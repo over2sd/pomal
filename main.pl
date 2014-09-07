@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+$|++; # Immediate STDOUT, maybe?
+
 use Getopt::Long;
 my $version = "0.01a";
 my $conffilename = 'config.ini';
@@ -39,6 +41,8 @@ use PGUI;
 
 my ($dbh) = PGUI::loadDBwithSplashDetail();
 print "\nStarting GUI...\n";
-my %gui = PGUI::createMainWin($dbh);
+my %gui = PGUI::createMainWin();
+PGUI::populateMainWin($dbh,%gui);
+$| = 0; # return to buffered STDOUT
 Gtk2->main();
 print "Oops... not finished coding this. Exiting normally.\n";

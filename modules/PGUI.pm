@@ -54,35 +54,29 @@ sub createSplash {
 }
 
 sub createMainWin {
-	my ($dbh,$w,$h) = @_;
+	my ($w,$h) = @_;
 	my %windowset;
 	my $window = Gtk2::Window->new();
 	$window->set_title("PersonalOfflineManga/AnimeList");
-
-	my $button = Gtk2::Button->new('Quit');
-	$button->signal_connect(clicked=> \&storeWindowExit );
-
 	$window->signal_connect (destroy => \&Gtkdie ); # not saving position/size
 	if (config('Main','savepos')) {
 		unless ($w and $h) { $w = config('Main','width'); $h = config('Main','height'); }
 		$window->set_default_size($w,$h);
-		$window->move(config('Main','left') or 40,config('Main','top') or 30);
+		$window->move((config('Main','left') or 40),(config('Main','top') or 30));
 	}
 	my $vbox = Gtk2::VBox->new();
 	$window->add($vbox);
 	my $ag = Gtk2::AccelGroup->new(); # create the hotkey group
 	my $mb = buildMenus($window,$ag); # build the menus
 	$windowset{accel} = $ag; # store the hotkey group
-	$vbox->pack_start($mb,1,0,2);
+	$vbox->pack_start($mb,0,0,2);
 
-	$vbox->pack_start($button,1,0,2);
 	#pack it all into the hash for main program use
 	$windowset{mainWin} = $window;
 	$windowset{status} = getStatus();
-	$vbox->pack_end($windowset{status},1,0,2);
+	$vbox->pack_end($windowset{status},0,0,2);
 	$windowset{menubar} = $mb;
 	$windowset{vbox} = $vbox;
-
 	$window->show_all();
 	return %windowset;
 }
@@ -163,6 +157,7 @@ sub storeWindowExit {
 	my ($caller,$window) = @_;
 	my $s = 'Main';
 	if (config($s,'savepos')) {
+		print "Storing window position.";
 		my ($w,$h) = $window->get_size();
 		my ($x,$y) = $window->get_position();
 		config($s,'width',$w);
@@ -248,11 +243,15 @@ sub loadDBwithSplashDetail {
 			my $stop = 1;
 			my $login = Gtk2::VBox->new();
 			$box->pack_start($login,0,0,3);
+			my $submit = Gtk2::Button->new("Submit");
 		# ask user for host
 			my $hl = Gtk2::Label->new("Server address:");
 			my $ehost = Gtk2::Entry->new();
+			$ehost->set_text("127.0.0.1");
+			$ehost->signal_connect("activate",sub { $submit->clicked(); }); # press Enter clicks button
 		# ask user for SQL username, if needed by server (might not be, for localhost)
 			my $euname = Gtk2::Entry->new();
+			$euname->signal_connect("activate",sub { $submit->clicked(); }); # press Enter clicks button
 		# ask user if username required
 			my $uml = Gtk2::Label->new("Username required?");
 			my $umy = Gtk2::RadioButton->new_with_label(undef,"Yes");
@@ -278,7 +277,6 @@ sub loadDBwithSplashDetail {
 			$pmb->pack_start($pmy,0,0,1);
 			$pmb->pack_start($pass,1,0,2);
 			$pmb->show_all();
-			my $submit = Gtk2::Button->new("Submit");
 			$submit->signal_connect("clicked",sub { $stop = 0; });
 		# wait for user responses
 			$login->pack_start($hl,0,0,1);
@@ -362,9 +360,9 @@ sub askPass {
 	$pass->set_visibility(0); # entry must be set to make stars for safe password
 	$pass->signal_connect("activate",sub { $but->clicked(); }); # press Enter clicks button
 	# put label and entry and button in box, and box in parent
-	$vb->pack_start($lab,1,0,3);
-	$vb->pack_start($pass,1,0,3);
-	$vb->pack_start($but,1,0,3);
+	$vb->pack_start($lab,0,0,3);
+	$vb->pack_start($pass,0,0,3);
+	$vb->pack_start($but,0,0,3);
 	$parent->pack_start($vb,1,1,2);
 	$vb->show_all();
 	while ($stop) {
@@ -411,6 +409,95 @@ sub sayBox {
 	$askbox->run();
 	$askbox->destroy();
 	return 0;
+}
+print ".";
+
+sub populateMainWin {
+	my ($dbh,%gui) = @_;
+	$gui{status}->push(0,"Building UI...");
+	my $note = Gtk2::Notebook->new();
+	$note->show();
+	$gui{vbox}->pack_start($note,1,1,2);
+	# set tab position based on config option
+	my $alabel = Gtk2::Label->new("Anime");
+	my $ascroll = Gtk2::ScrolledWindow->new();
+	$ascroll->show();
+	$note->append_page($ascroll,$alabel);
+###start section -- may break this out into its own function and call it once for anime, once for manga, once for movies, if so configured...
+	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
+	my %boxesbystat;
+	my %labels;
+	$gui{status}->push(0,"Loading titles...");
+	foreach (keys %statuses) {
+		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
+		# getByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
+		# pull list of titles from DB @a = getByStatus($dbh,"series" or "pub",$_,%exargs);
+		# make a label
+		$labels{$_} = Gtk2::Label->new($statuses{$_});
+		$labels{$_}->show();
+		# make a box
+		# fill the box with titles
+		# $exargs{secondvalue} = 
+		# buildTitleRows("series" or "pub",$status,$box,@a)
+		# put box into %boxesbystat
+	}
+#	unless (config('Options','statustabs',0)) {
+		$gui{status}->push(0,"Placing titles in box...");
+		my $abox = Gtk2::VBox->new();
+		$abox->show();
+		$ascroll->add_with_viewport($abox);
+		foreach (qw( wat onh ptw com drp )) {
+			$abox->pack_start($labels{$_},0,0,1);
+			# place titlebystatus box in $abox
+		}
+#	} else {
+#		$gui{status}->push(0,"Placing titles in tabs...");
+		# make statuses tab notebook
+#		my $newnote = Gtk2::Notebook->new();
+#		$newnote->show();
+		# set tab position by config option
+#		warn "Not coded! TODO: code a loop that makes a tab for each status and puts it in a second notebook ";
+#		foreach (qw( wat onh ptw com drp )) {
+			# make tab for this status
+#			my $newscroll = Gtk2::ScrolledWindow->new();
+#			$newscroll->show();
+#			$newnote->append_page($newscroll,$labels{$_});
+			# place titlebystatus box in newscroll
+#		}
+#	}
+### end section
+
+	# do the same thing for manga as was done for anime
+	my $mlabel = Gtk2::Label->new("Manga");
+	my $mscroll = Gtk2::ScrolledWindow->new();
+	$mscroll->show();
+	$note->append_page($mscroll,$mlabel);
+### repeat section	
+	$gui{status}->push(0,"Ready.");
+}
+print ".";
+
+sub buildTitleRows {
+	my ($titletype,$status,$parent,@tlist)
+	# each item in list is an arrayref
+# loop over list
+	# make an HBox
+	# put in the title of the series
+	# put in the rewatching status
+	# if manga, put in the number of read/volumes (button)
+	# link the button to a dialog asking for a new value
+	# if manga, put in a button to increment the number of volumes
+	# put in the number of watched/episodes (button) -- or chapters
+	# link the button to a dialog asking for a new value
+	# put in a label giving the % completed (using watch or rewatched episodes)
+	# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
+	# put in the tag list
+	# put in the score
+	# put in a button to edit the title/list its volumes/episodes
+	# put in button(s) for moving to another status? TODO later
+# end loop
+	# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+	# return list of objects?
 }
 print ".";
 

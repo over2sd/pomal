@@ -12,5 +12,6 @@ Option: display last episode watched, or next episode to watch?
 Detect movies and put them on their own notebook tab
 Sanity checking for all input values, specifically those expect to be between, e.g., 0..10.
 Install script that checks for and pulls unsatisfied Perl dependencies?
-GUI: insert default SQL server value of localhost
-GUI: server entry box should submit form on <Enter>
+Allow different labels on the tabs (Anime=>Shows)
+When building title rows, put in button(s) for moving to another status
+Allow titles to be arranged in different orders

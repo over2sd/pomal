@@ -28,7 +28,7 @@ print ".";
 
 sub validateConfig { # sets config values for missing required defaults
 	my %defaults = (
-		"width" => 640,
+		"width" => 375,
 		"height" => 480,
 		"savepos" => 0
 		);
