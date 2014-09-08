@@ -9,7 +9,9 @@ use FIO;
 sub config { return FIO::config(@_); }
 
 sub Gtkdie {
-	print "I am slain.\n";
+	my $win = shift;
+	$win->destroy();
+	print "I am slain. (" . shift . ")\n";
 	Gtk2->main_quit;
 	exit(shift or 0);
 }
@@ -418,68 +420,19 @@ sub populateMainWin {
 	my $note = Gtk2::Notebook->new();
 	$note->show();
 	$gui{vbox}->pack_start($note,1,1,2);
-	# set tab position based on config option
-	my $alabel = Gtk2::Label->new("Anime");
-	my $ascroll = Gtk2::ScrolledWindow->new();
-	$ascroll->show();
-	$note->append_page($ascroll,$alabel);
-###start section -- may break this out into its own function and call it once for anime, once for manga, once for movies, if so configured...
-	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
-	my %boxesbystat;
-	my %labels;
-	$gui{status}->push(0,"Loading titles...");
-	foreach (keys %statuses) {
-		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
-		# getByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		# pull list of titles from DB @a = getByStatus($dbh,"series" or "pub",$_,%exargs);
-		# make a label
-		$labels{$_} = Gtk2::Label->new($statuses{$_});
-		$labels{$_}->show();
-		# make a box
-		# fill the box with titles
-		# $exargs{secondvalue} = 
-		# buildTitleRows("series" or "pub",$status,$box,@a)
-		# put box into %boxesbystat
+	$gui{tabbar} = $note; # store for additional tabs
+	if (defined config('UI','tabson')) { $note->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
+	foreach (qw[ ani man ]) {
+		fillPage($dbh,$_,%gui);
 	}
-#	unless (config('UI','statustabs',0)) {
-		$gui{status}->push(0,"Placing titles in box...");
-		my $abox = Gtk2::VBox->new();
-		$abox->show();
-		$ascroll->add_with_viewport($abox);
-		foreach (qw( wat onh ptw com drp )) {
-			$abox->pack_start($labels{$_},0,0,1);
-			# place titlebystatus box in $abox
-		}
-#	} else {
-#		$gui{status}->push(0,"Placing titles in tabs...");
-		# make statuses tab notebook
-#		my $newnote = Gtk2::Notebook->new();
-#		$newnote->show();
-		# set tab position by config option
-#		warn "Not coded! TODO: code a loop that makes a tab for each status and puts it in a second notebook ";
-#		foreach (qw( wat onh ptw com drp )) {
-			# make tab for this status
-#			my $newscroll = Gtk2::ScrolledWindow->new();
-#			$newscroll->show();
-#			$newnote->append_page($newscroll,$labels{$_});
-			# place titlebystatus box in newscroll
-#		}
-#	}
-### end section
-
-	# do the same thing for manga as was done for anime
-	my $mlabel = Gtk2::Label->new("Manga");
-	my $mscroll = Gtk2::ScrolledWindow->new();
-	$mscroll->show();
-	$note->append_page($mscroll,$mlabel);
-### repeat section	
 	$gui{status}->push(0,"Ready.");
 }
 print ".";
 
 sub buildTitleRows {
-	my ($titletype,$status,$parent,@tlist)
+	my ($titletype,$status,$parent,@tlist);
 	# each item in list is an arrayref
+	# if header: ["Title","Progress","Tags","Score","?"]
 # loop over list
 	# make an HBox
 	# put in the title of the series
@@ -521,7 +474,7 @@ sub callOptBox {
 		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
 		'34' => ['c',"Notebook with tab for each status",'statustabs'],
 		'36' => ['c',"Put movies on a separate tab",'moviesapart'],
-		'38' => ['r',"Notebook tab position: ",'tabson',0,0,"Top",2,"Bottom"],
+		'38' => ['s',"Notebook tab position: ",'tabson',0,"left","top","right","bottom"],
 		'39' => ['c',"Show suggestions tab",'suggtab'],
 		'40' => ['c',"Show recent activity tab",'recenttab'],
 		'41' => ['c',"Recent tab active on startup",'activerecent'],
@@ -543,6 +496,71 @@ sub callOptBox {
 
 	# When done with %opts...
 	# add content filter options to notebook
+}
+print ".";
+
+sub fillPage {
+	my ($dbh,$typ,%gui) = @_;
+	unless (defined $gui{tabbar}) { Gtkdie("fillPage couldn't find tab bar!"); }
+	my $text = "???";
+	my $rowtyp = "???";
+	for ($typ) {
+		print "Type is $typ\n";
+		if (/ani/) { $text = (config('Custom',$typ) or "Anime"); $rowtyp = "series"; }
+		elsif (/man/) { $text = (config('Custom',$typ) or "Manga"); $rowtyp = "pub"; }
+		elsif (/mov/) { $text = (config('Custom',$typ) or "Movies"); $rowtyp = "series"; }
+		elsif (/sam/) { $text = (config('Custom',$typ) or "Book"); $rowtyp = "pub"; }
+		else { $text = "Unknown"; }
+	}
+	my $label = Gtk2::Label->new($text);
+	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
+	my %boxesbystat;
+	my %labels;
+	$gui{status}->push(0,"Loading titles...");
+	foreach (keys %statuses) {
+		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
+		# getByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
+		# pull list of titles from DB @a = getByStatus($dbh,"series" or "pub",$_,%exargs);
+		# make a label
+		$labels{$_} = Gtk2::Label->new($statuses{$_});
+		$labels{$_}->show();
+		# make a box
+#		my $head = buildTitleRows($rowtyp,"head",$box,);
+		# fill the box with titles
+		# $exargs{secondvalue} = 
+		# buildTitleRows("series" or "pub",$status,$box,@a)
+		# put box into %boxesbystat
+	}
+	unless (config('UI','statustabs') or 0) {
+		$gui{status}->push(0,"Placing titles in box...");
+		my $box = Gtk2::VBox->new();
+		$box->show();
+		my $scroll = Gtk2::ScrolledWindow->new();
+		$scroll->show();
+		$gui{tabbar}->append_page($scroll,$label);
+		$scroll->add_with_viewport($box);
+		foreach (qw( wat onh ptw com drp )) { # specific order
+			$box->pack_start($labels{$_},0,0,1);
+			$box->pack_start($boxesbystat($_),1,1,2); # place titlebystatus box in box
+		}
+	} else {
+# TODO: code a loop that makes a tab for each status and puts it in a second notebook ";
+		$gui{status}->push(0,"Placing titles in tabs...");
+warn "Not coded";
+exit(-2);
+		# make statuses tab notebook
+#		my $newnote = Gtk2::Notebook->new();
+#		$newnote->show();
+		# set tab position by config option
+#		foreach (qw( wat onh ptw com drp )) { # specific order
+			# make tab for this status
+#			my $newscroll = Gtk2::ScrolledWindow->new();
+#			$newscroll->show();
+#			$newnote->append_page($newscroll,$labels{$_});
+			# place titlebystatus box in newscroll
+#		}
+#		$gui{tabbar}->append_page($newnote,$label);
+	}
 }
 print ".";
 
