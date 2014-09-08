@@ -441,7 +441,7 @@ sub populateMainWin {
 		# buildTitleRows("series" or "pub",$status,$box,@a)
 		# put box into %boxesbystat
 	}
-#	unless (config('Options','statustabs',0)) {
+#	unless (config('UI','statustabs',0)) {
 		$gui{status}->push(0,"Placing titles in box...");
 		my $abox = Gtk2::VBox->new();
 		$abox->show();
@@ -498,6 +498,51 @@ sub buildTitleRows {
 # end loop
 	# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
 	# return list of objects?
+}
+print ".";
+
+sub callOptBox {
+	# need: parent window, guiset (for setting window marker, so if it exists, I can present the window instead of recreating it?)
+	# First hash key (when sorted) MUST be a label containing a key that corresponds to the INI Section for the options that follow it!
+	# EACH Section needs a label conaining the Section name in the INI file where it resides.
+	my %opts = (
+		'00' => ['l',"General",'Main'],
+		'01' => ['c',"Save window positions",'savepos'],
+		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
+		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
+
+		'10' => ['l',"Database",'DB'],
+		'11' => ['r',"Database type:",'type',0,'M','MySQL','L','SQLite'],
+		'12' => ['t',"Server address:",'host'],
+		'13' => ['t',"Login name (if required):",'user'],
+		'14' => ['c',"Server requires password",'password'],
+
+		'30' => ['l',"User Interface",'UI'],
+		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
+		'34' => ['c',"Notebook with tab for each status",'statustabs'],
+		'36' => ['c',"Put movies on a separate tab",'moviesapart'],
+		'38' => ['r',"Notebook tab position: ",'tabson',0,0,"Top",2,"Bottom"],
+		'39' => ['c',"Show suggestions tab",'suggtab'],
+		'40' => ['c',"Show recent activity tab",'recenttab'],
+		'41' => ['c',"Recent tab active on startup",'activerecent'],
+
+		'70' => ['l',"Custom Text",'Custom'],
+		'71' => ['t',"Anime:",'ani'],
+		'72' => ['t',"Manga:",'man'],
+		'73' => ['t',"POMAL:",'program']
+    );
+	# Make a window
+	# make a tabbed notebook
+	# for each section, make a notebook page
+	# notebook page should be a scrolled window, in case there are many options in the Section
+	# make a vbox to put all the options in a given Section in
+	# make a Close button
+	# make a Save button (calls saveConf())
+#		$item = Options::addModOpts(scroll,@o);
+	# put item in vbox
+
+	# When done with %opts...
+	# add content filter options to notebook
 }
 print ".";
 
