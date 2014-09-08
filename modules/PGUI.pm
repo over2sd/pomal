@@ -10,8 +10,10 @@ sub config { return FIO::config(@_); }
 
 sub Gtkdie {
 	my $win = shift;
-	$win->destroy();
-	print "I am slain. (" . shift . ")\n";
+	if ($win) { $win->destroy(); }
+	my $text = shift;
+	my $text = ( defined $text ? " ($text)" : "" );
+	print "I am slain.$text\n";
 	Gtk2->main_quit;
 	exit(shift or 0);
 }
@@ -59,7 +61,7 @@ sub createMainWin {
 	my ($w,$h) = @_;
 	my %windowset;
 	my $window = Gtk2::Window->new();
-	$window->set_title("PersonalOfflineManga/AnimeList");
+	$window->set_title(config('Custom','program') or "PersonalOfflineManga/AnimeList");
 	$window->signal_connect (destroy => \&Gtkdie ); # not saving position/size
 	if (config('Main','savepos')) {
 		unless ($w and $h) { $w = config('Main','width'); $h = config('Main','height'); }
@@ -157,9 +159,10 @@ print ".";
 
 sub storeWindowExit {
 	my ($caller,$window) = @_;
+	print "Called by $caller, I am ";
 	my $s = 'Main';
 	if (config($s,'savepos')) {
-		print "Storing window position.";
+		print "Storing window position. ";
 		my ($w,$h) = $window->get_size();
 		my ($x,$y) = $window->get_position();
 		config($s,'width',$w);
@@ -168,9 +171,9 @@ sub storeWindowExit {
 		config($s,'left',$x);
 		FIO::saveConf();
 	} else {
-		print "Not storing window position.";
+		print "Not storing window position. ";
 	}
-	Gtkdie();
+	Gtkdie($window,"Clean quit");
 }
 print ".";
 
@@ -430,27 +433,60 @@ sub populateMainWin {
 print ".";
 
 sub buildTitleRows {
-	my ($titletype,$status,$parent,@tlist);
-	# each item in list is an arrayref
-	# if header: ["Title","Progress","Tags","Score","?"]
-# loop over list
-	# make an HBox
-	# put in the title of the series
-	# put in the rewatching status
-	# if manga, put in the number of read/volumes (button)
-	# link the button to a dialog asking for a new value
-	# if manga, put in a button to increment the number of volumes
-	# put in the number of watched/episodes (button) -- or chapters
-	# link the button to a dialog asking for a new value
-	# put in a label giving the % completed (using watch or rewatched episodes)
-	# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
-	# put in the tag list
-	# put in the score
-	# put in a button to edit the title/list its volumes/episodes
-	# put in button(s) for moving to another status? TODO later
-# end loop
-	# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-	# return list of objects?
+	my ($titletype,$parent,%tlist) = @_;
+	# each item in hash is an array
+	if ("head" eq $titletype) { %tlist = ( '-1' => ["Title",0,"Score","?"]); }
+	my @rows;
+	foreach my $k (keys %tlist) { # loop over list
+		my @row = @{ $tlist{$k} };
+		my $hb = Gtk2::HBox->new(); # make an HBox
+		$hb->show();
+		$parent->pack_start($hb,0,0,1);
+# sid => sname, status, score, lastwatched (or lastrewatched), episodes, 
+		my $title = Gtk2::Label->new($row[0]); # put in the title of the series
+		$title->show();
+		$hb->pack_start($title,1,1,1);
+		my $rew = Gtk2::Label->new(($row[1] == 3 ? "Rewatching" : "")); # put in the rewatching status
+		$rew->show();
+		$hb->pack_start($rew,0,0,1);
+		if ($titletype eq 'head') {
+			my $plabel = Gtk2::Label->new("Progress");
+			$plabel->show();
+			$hb->pack_start($plabel,0,0,1);
+		} else {
+		# put in the number of watched/episodes (button) -- or chapters
+		# link the button to a dialog asking for a new value
+		# put in a label giving the % completed (using watch or rewatched episodes)
+		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
+		# if manga, put in the number of read/volumes (button)
+		# link the button to a dialog asking for a new value
+		# if manga, put in a button to increment the number of volumes
+		}
+		if ($titletype eq 'head') {
+			my $tags = Gtk2::Label->new("Tags");
+			$tags->show();
+			$hb->pack_start($tags,0,0,1);
+		} else {
+			my $tags = Gtk2::Button->new("Show/Edit tags"); # put in the tag list (button?)
+			# use $k for callback; it should contain the series/pub id #.
+			$tags->show();
+			$hb->pack_start($tags,0,0,1);
+		}
+		if ($titletype eq 'head') {
+			my $score = Gtk2::Label->new($row[2]);
+			$score->show();
+			$hb->pack_start($score,0,0,1);
+		} else {
+			my $score = Gtk2::Button->new($row[2]); # put in the score
+			$score->show();
+			$hb->pack_start($score,0,0,1);
+		}
+		# put in a button to edit the title/list its volumes/episodes
+		# put in button(s) for moving to another status? TODO later
+		$hb->show_all();
+		push(@rows,$hb);
+	} # end loop
+	return @rows;
 }
 print ".";
 
@@ -469,6 +505,7 @@ sub callOptBox {
 		'12' => ['t',"Server address:",'host'],
 		'13' => ['t',"Login name (if required):",'user'],
 		'14' => ['c',"Server requires password",'password'],
+		'20' => ['c',"Update episode record with date on first change of episode"],
 
 		'30' => ['l',"User Interface",'UI'],
 		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
@@ -479,10 +516,17 @@ sub callOptBox {
 		'40' => ['c',"Show recent activity tab",'recenttab'],
 		'41' => ['c',"Recent tab active on startup",'activerecent'],
 
+		'50' => ['l',"Fonts",'Font'],
+		'51' => ['t',"Label font/size: ",'label'],
+		'52' => ['t',"General font/size: ",'body'],
+		'53' => ['t',"Special font/size: ",'special'], # for lack of a better term
+
 		'70' => ['l',"Custom Text",'Custom'],
-		'71' => ['t',"Anime:",'ani'],
-		'72' => ['t',"Manga:",'man'],
-		'73' => ['t',"POMAL:",'program']
+		'72' => ['t',"Anime:",'ani'],
+		'73' => ['t',"Manga:",'man'],
+		'71' => ['t',"POMAL:",'program'],
+		'74' => ['t',"Movies:",'mov'],
+		'75' => ['t',"Stand-alone Manga:",'sam']
     );
 	# Make a window
 	# make a tabbed notebook
@@ -505,31 +549,36 @@ sub fillPage {
 	my $text = "???";
 	my $rowtyp = "???";
 	for ($typ) {
-		print "Type is $typ\n";
 		if (/ani/) { $text = (config('Custom',$typ) or "Anime"); $rowtyp = "series"; }
 		elsif (/man/) { $text = (config('Custom',$typ) or "Manga"); $rowtyp = "pub"; }
 		elsif (/mov/) { $text = (config('Custom',$typ) or "Movies"); $rowtyp = "series"; }
-		elsif (/sam/) { $text = (config('Custom',$typ) or "Book"); $rowtyp = "pub"; }
+		elsif (/sam/) { $text = (config('Custom',$typ) or "Books"); $rowtyp = "pub"; }
 		else { $text = "Unknown"; }
 	}
 	my $label = Gtk2::Label->new($text);
+	applyFont($label,1);
 	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
 	my %boxesbystat;
 	my %labels;
 	$gui{status}->push(0,"Loading titles...");
 	foreach (keys %statuses) {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
+		# $exargs{secondvalue} = 3
 		# getByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		# pull list of titles from DB @a = getByStatus($dbh,"series" or "pub",$_,%exargs);
+		# pull list of titles from DB %a = %{ getByStatus($dbh,$rowtype,$_,%exargs) };
 		# make a label
 		$labels{$_} = Gtk2::Label->new($statuses{$_});
+		$labels{$_}->set_alignment(0.05,0.5);
+		applyFont($labels{$_},1);
 		$labels{$_}->show();
-		# make a box
-#		my $head = buildTitleRows($rowtyp,"head",$box,);
+		my $zbox = Gtk2::VBox->new(); # make a box
+		$zbox->show();
+		buildTitleRows("head",$zbox);
 		# fill the box with titles
-		# $exargs{secondvalue} = 
-		# buildTitleRows("series" or "pub",$status,$box,@a)
-		# put box into %boxesbystat
+		# buildTitleRows($rowtype,$zbox,%a)
+		# compile statistics from @a
+		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+		$boxesbystat{$_} = $zbox; # put box into %boxesbystat
 	}
 	unless (config('UI','statustabs') or 0) {
 		$gui{status}->push(0,"Placing titles in box...");
@@ -541,26 +590,29 @@ sub fillPage {
 		$scroll->add_with_viewport($box);
 		foreach (qw( wat onh ptw com drp )) { # specific order
 			$box->pack_start($labels{$_},0,0,1);
-			$box->pack_start($boxesbystat($_),1,1,2); # place titlebystatus box in box
+			$box->pack_start($boxesbystat{$_},1,1,2); # place titlebystatus box in box
 		}
 	} else {
-# TODO: code a loop that makes a tab for each status and puts it in a second notebook ";
 		$gui{status}->push(0,"Placing titles in tabs...");
-warn "Not coded";
-exit(-2);
-		# make statuses tab notebook
-#		my $newnote = Gtk2::Notebook->new();
-#		$newnote->show();
-		# set tab position by config option
-#		foreach (qw( wat onh ptw com drp )) { # specific order
-			# make tab for this status
-#			my $newscroll = Gtk2::ScrolledWindow->new();
-#			$newscroll->show();
-#			$newnote->append_page($newscroll,$labels{$_});
-			# place titlebystatus box in newscroll
-#		}
-#		$gui{tabbar}->append_page($newnote,$label);
+		my $snote = Gtk2::Notebook->new(); # make statuses tab notebook
+		$snote->show();
+		if (defined config('UI','tabson')) { $snote->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
+		foreach (qw( wat onh ptw com drp )) { # specific order
+			my $newscroll = Gtk2::ScrolledWindow->new();
+			$newscroll->show();
+			$snote->append_page($newscroll,$labels{$_}); # make tab for this status
+			$newscroll->add_with_viewport($boxesbystat{$_}); # place titlebystatus box in newscroll
+		}
+		$gui{tabbar}->append_page($snote,$label);
 	}
+}
+print ".";
+
+sub applyFont {
+	my ($self,$index) = @_;
+	my $key = qw( body label special )[$index] or 'body';
+	my $font = config('Font',$key);
+	if (defined $font) { $self->modify_font(Gtk2::Pango::FontDescription->from_string($font)); }
 }
 print ".";
 
