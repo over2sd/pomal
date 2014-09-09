@@ -6,11 +6,13 @@ use Exporter;
 print __PACKAGE__;
 
 my $cfg = Config::IniFiles->new();
+my $cfgread = 0;
 
 sub config {
 	my ($section,$key,$value) = @_;
 #	print "config(@_)\n";
 	unless (defined $value) {
+		unless ($cfgread) { warn "Using empty configuration!"; }
 		if (defined $cfg->val($section,$key,undef)) {
 			return $cfg->val($section,$key);
 		} else {
@@ -42,6 +44,7 @@ print ".";
 
 sub saveConf {
 	$cfg->RewriteConfig();
+	$cfgread = 1; # If we're writing, I'll assume we have some values to use
 }
 print ".";
 
@@ -52,6 +55,7 @@ sub loadConf {
 	if ( -s $configfilename ) {
 		print "found. Loading...";
 		$cfg->ReadConfig();
+		$cfgread = 1;
 	}
 	validateConfig();
 }

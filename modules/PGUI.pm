@@ -499,6 +499,8 @@ sub callOptBox {
 		'01' => ['c',"Save window positions",'savepos'],
 		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
 		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
+		'06' => ['c',"Store tracking site credentials gleaned from imported XML",'gleanfromXML'],
+		'07' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
 
 		'10' => ['l',"Database",'DB'],
 		'11' => ['r',"Database type:",'type',0,'M','MySQL','L','SQLite'],
@@ -515,6 +517,7 @@ sub callOptBox {
 		'39' => ['c',"Show suggestions tab",'suggtab'],
 		'40' => ['c',"Show recent activity tab",'recenttab'],
 		'41' => ['c',"Recent tab active on startup",'activerecent'],
+		'42' => ['c',"Show progress bar for each title's progress",'graphicprogress'],
 
 		'50' => ['l',"Fonts",'Font'],
 		'51' => ['t',"Label font/size: ",'label'],
@@ -526,7 +529,10 @@ sub callOptBox {
 		'73' => ['t',"Manga:",'man'],
 		'71' => ['t',"POMAL:",'program'],
 		'74' => ['t',"Movies:",'mov'],
-		'75' => ['t',"Stand-alone Manga:",'sam']
+		'75' => ['t',"Stand-alone Manga:",'sam'],
+
+		'90' => ['l',"Debug Options",'Debug'],
+		'91' => ['c',"Colored terminal output",'termcolors']
     );
 	# Make a window
 	# make a tabbed notebook

@@ -60,5 +60,60 @@ sub get {
 }
 print ".";
 
+# I've pulled these three functions into so many projects, I ought to release them as part of a library.
+sub getColorsbyName {
+	my $name = shift;
+	my @colnames = qw( base red green yellow blue purple cyan ltred ltgreen ltyellow ltblue pink ltcyan white bluong blkrev gray );
+	my $ccode = -1;
+	++$ccode until $ccode > $#colnames or $colnames[$ccode] eq $name;
+	$ccode = ($ccode > $#colnames) ? 0 : $ccode;
+	return getColors($ccode);
+}
+print ".";
+
+sub getColors{
+	if (0) { # TODO: check for terminal color compatibility
+		return "";
+	}
+	my @colors = ("\033[0;37;40m","\033[0;31;40m","\033[0;32;40m","\033[0;33;40m","\033[0;34;40m","\033[0;35;40m","\033[0;36;40m","\033[1;31;40m","\033[1;32;40m","\033[1;33;40m","\033[1;34;40m","\033[1;35;40m","\033[1;36;40m","\033[1;37;40m","\033[0;34;47m","\033[7;37;40m","\033[1;30;40m");
+	my $index = shift;
+	if ($index >= scalar @colors) {
+		$index = $index % scalar @colors;
+	}
+	if (defined($index)) {
+		return $colors[int($index)];
+	} else {
+		return @colors;
+	}
+}
+print ".";
+
+sub findIn {
+	my ($v,@a) = @_;
+	if ($debug > 0) {
+		use Data::Dumper;
+		print ">>".Dumper @a;
+		print "($v)<<";
+	}
+	unless (defined $a[$#a] and defined $v) {
+		use Carp qw( croak );
+		my @loc = caller(0);
+		my $line = $loc[2];
+		@loc = caller(1);
+		my $file = $loc[1];
+		my $func = $loc[3];
+		croak("FATAL: findIn was not sent a \$SCALAR and an \@ARRAY as required from line $line of $func in $file. Caught");
+		return -1;
+	}
+	my $i = 0;
+	while ($i < scalar @a) {
+		print ":$i:" if $debug > 0;
+		if ("$a[$i]" eq "$v") { return $i; }
+		$i++;
+	}
+	return -1;
+}
+print ".";
+
 print " OK; ";
 1;

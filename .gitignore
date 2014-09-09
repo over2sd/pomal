@@ -21,3 +21,4 @@ nytprof.out
 *.xml.gz
 add.sh
 *.dbl
+test.pl

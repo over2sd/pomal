@@ -102,7 +102,7 @@ sub makeTables { # used for first run
 			$st =~ s/ AUTO_INCREMENT//g; #...or auto_increment?
 		}
 		my $error = doQuery(2,$dbh,$st);
-		print $i + 1 . ($error ? ": $st\n" : "" );
+#		print $i + 1 . ($error ? ": $st\n" : "" );
 		print ".";
 		if($error) { return undef,$error; }
 	}
@@ -163,6 +163,79 @@ sub table_exists {
 	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT name FROM sqlite_master WHERE type='table' LIKE ?;); }
 	my $result = doQuery(0,$dbh,$st,$table);
 	return (length($result) == 0) ? 0 : 1;
+}
+print ".";
+
+sub prepareFromHash {
+	my ($href,$table,$update) = @_;
+	my %tablekeys = (
+		series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
+		pub => ['pname','lastread','started','ended','score','content','rating','lastreread','readtimes','status','note']
+		# episode, volume, chapter?
+	);
+	my ($upcolor,$incolor,$basecolor) = ("","","");
+	if ((FIO::config('Debug','termcolors') or 0)) {
+		use Common qw( getColorsbyName );
+		$upcolor = Common::getColorsbyName("yellow");
+		$incolor = Common::getColorsbyName("purple");
+		$basecolor = Common::getColorsbyName("base");
+	}
+	my %ids = ( series => "sid", pub => "pid");
+	my $idcol = $ids{$table} or return 1,"ERROR","Bad table name passed to prepareFromHash";
+	my %vals = %$href;
+	my @parms;
+	my $cmd = "$table";
+	my @keys = @{$tablekeys{$table}};
+	unless ($update) {
+		my $valstxt = "VALUES (";
+		$cmd = "INSERT INTO $cmd (";
+		my @cols;
+		push(@parms,$vals{$idcol});
+		push(@cols,$idcol);
+		print "$incolor";
+		foreach (keys %vals) {
+			my $pat = "m/$_/";
+			unless (Common::findIn($_,@keys) < 0) {
+				push(@cols,$_); # columns
+				push(@parms,$vals{$_}); # parms
+				print ".";
+			}
+		}
+		print "$basecolor";
+		unless(@parms) { return 2,"ERROR","No parameters were matched with column names."; }
+		$cmd = "$cmd" . join(",",@cols);
+		if(@cols) { $valstxt = "$valstxt?" . (",?" x $#cols) . ")"; }
+		$cmd = "$cmd) $valstxt";
+	} else {
+		$cmd = "UPDATE $cmd SET ";
+		print "$upcolor";
+		foreach (keys %vals) {
+			unless (Common::findIn($_,@keys) < 0) {
+				$cmd = "$cmd$_=?, "; # columns
+				push(@parms,$vals{$_}); # parms
+				print ".";
+			}
+		}
+		print "$basecolor";
+		unless(@parms) { return 2,"ERROR","No parameters were matched with column names."; }
+		$cmd = substr($cmd,0,length($cmd)-2); # trim final ", "
+		$cmd = "$cmd WHERE $idcol=$vals{$idcol}";
+	}
+	return 0,$cmd,@parms; # Normal completion
+}
+print ".";
+
+sub addTags {
+	my ($dbh,$key,$sid,@taglist) = @_;
+	warn "This is only a dream. addTags is not really parsing your input. Sorry.";
+	# see if taglist is a real array or just csv
+	# if csv, split it into a real array
+	# foreach tag
+		# check to see if the tag exists in the tag table
+		# if it doesn't, add it
+		# assign its ID to a variable
+		# add a line in the tags table linking this tag with the series id in $sid and the key indicating the title type
+	# return happiness
 }
 print ".";
 
