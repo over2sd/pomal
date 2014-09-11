@@ -7,10 +7,11 @@ require Exporter;
 @EXPORT = qw(getDB closeDB);
 
 # DB wrappers that call SQL(ite) functions, depending on which the user has chosen to use for a backend.
+my $dbh;
 sub getDB {
+	if (defined $dbh) { return $dbh; }
 	my ($dbtype) = shift;
 	use DBI;
-	my $dbh;
 	if ($dbtype eq "L") { # for people without access to a SQL server
 		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
 	} elsif ($dbtype eq "M") {

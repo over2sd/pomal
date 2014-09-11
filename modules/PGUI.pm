@@ -56,10 +56,17 @@ sub createSplash {
 	$window->show_all();
 	return $window,$splashdetail,$progress,$vb;
 }
+print ".";
+
+my %windowset;
+sub getGUI {
+	unless (defined keys %windowset) { createMainWin(); }
+	return \%windowset;
+}
+print ".";
 
 sub createMainWin {
 	my ($w,$h) = @_;
-	my %windowset;
 	my $window = Gtk2::Window->new();
 	$window->set_title(config('Custom','program') or "PersonalOfflineManga/AnimeList");
 	$window->signal_connect (destroy => \&Gtkdie ); # not saving position/size
@@ -82,7 +89,7 @@ sub createMainWin {
 	$windowset{menubar} = $mb;
 	$windowset{vbox} = $vbox;
 	$window->show_all();
-	return %windowset;
+	return \%windowset;
 }
 print ".";
 
@@ -109,6 +116,7 @@ sub buildMenus {
 #		$itemFS->signal_connect("activate",\&FIO::saveData);
 #		File > Import
 		my $itemFI = itemize("_Import",$f);
+		$itemFI->signal_connect("activate",\&importGUI);
 #		File > Export
 		my $itemFE = itemize("_Export",$f);
 #		File > Synchronize
@@ -406,7 +414,7 @@ print ".";
 sub sayBox {
 	my ($parent,$text) = @_;
 	my $askbox = Gtk2::MessageDialog->new($parent,[qw/modal destroy-with-parent/],'question','ok',sprintf $text);
-#	$askbox->set_markup($text);
+	$askbox->set_markup($text);
 	my ($width,$height) = $askbox->get_size();
 	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # to prevent pop-shift of window
 	$askbox->show_all();
@@ -418,17 +426,17 @@ sub sayBox {
 print ".";
 
 sub populateMainWin {
-	my ($dbh,%gui) = @_;
-	$gui{status}->push(0,"Building UI...");
+	my ($dbh,$gui) = @_;
+	$$gui{status}->push(0,"Building UI...");
 	my $note = Gtk2::Notebook->new();
 	$note->show();
-	$gui{vbox}->pack_start($note,1,1,2);
-	$gui{tabbar} = $note; # store for additional tabs
+	$$gui{vbox}->pack_start($note,1,1,2);
+	$$gui{tabbar} = $note; # store for additional tabs
 	if (defined config('UI','tabson')) { $note->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
 	foreach (qw[ ani man ]) {
-		fillPage($dbh,$_,%gui);
+		fillPage($dbh,$_,$gui);
 	}
-	$gui{status}->push(0,"Ready.");
+	$$gui{status}->push(0,"Ready.");
 }
 print ".";
 
@@ -550,8 +558,8 @@ sub callOptBox {
 print ".";
 
 sub fillPage {
-	my ($dbh,$typ,%gui) = @_;
-	unless (defined $gui{tabbar}) { Gtkdie("fillPage couldn't find tab bar!"); }
+	my ($dbh,$typ,$gui) = @_;
+	unless (defined $$gui{tabbar}) { Gtkdie("fillPage couldn't find tab bar!"); }
 	my $text = "???";
 	my $rowtyp = "???";
 	for ($typ) {
@@ -566,7 +574,7 @@ sub fillPage {
 	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
 	my %boxesbystat;
 	my %labels;
-	$gui{status}->push(0,"Loading titles...");
+	$$gui{status}->push(0,"Loading titles...");
 	foreach (keys %statuses) {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{secondvalue} = 3
@@ -587,19 +595,19 @@ sub fillPage {
 		$boxesbystat{$_} = $zbox; # put box into %boxesbystat
 	}
 	unless (config('UI','statustabs') or 0) {
-		$gui{status}->push(0,"Placing titles in box...");
+		$$gui{status}->push(0,"Placing titles in box...");
 		my $box = Gtk2::VBox->new();
 		$box->show();
 		my $scroll = Gtk2::ScrolledWindow->new();
 		$scroll->show();
-		$gui{tabbar}->append_page($scroll,$label);
+		$$gui{tabbar}->append_page($scroll,$label);
 		$scroll->add_with_viewport($box);
 		foreach (qw( wat onh ptw com drp )) { # specific order
 			$box->pack_start($labels{$_},0,0,1);
 			$box->pack_start($boxesbystat{$_},1,1,2); # place titlebystatus box in box
 		}
 	} else {
-		$gui{status}->push(0,"Placing titles in tabs...");
+		$$gui{status}->push(0,"Placing titles in tabs...");
 		my $snote = Gtk2::Notebook->new(); # make statuses tab notebook
 		$snote->show();
 		if (defined config('UI','tabson')) { $snote->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
@@ -609,7 +617,7 @@ sub fillPage {
 			$snote->append_page($newscroll,$labels{$_}); # make tab for this status
 			$newscroll->add_with_viewport($boxesbystat{$_}); # place titlebystatus box in newscroll
 		}
-		$gui{tabbar}->append_page($snote,$label);
+		$$gui{tabbar}->append_page($snote,$label);
 	}
 }
 print ".";
@@ -619,6 +627,25 @@ sub applyFont {
 	my $key = qw( body label special )[$index] or 'body';
 	my $font = config('Font',$key);
 	if (defined $font) { $self->modify_font(Gtk2::Pango::FontDescription->from_string($font)); }
+}
+print ".";
+
+sub importGUI {
+	my ($caller) = @_;
+	my $dbh = PomalSQL::getDB();
+	my $gui = getGUI();
+	my $error = Import::importXML($dbh,$gui);
+	unless($error) {
+		$$gui{tabbar}->destroy();
+		$$gui{tabbar} = Gtk2::Notebook->new();
+		$$gui{tabbar}->show();
+		$$gui{vbox}->pack_start($$gui{tabbar},1,1,2);
+		if (defined config('UI','tabson')) { $view->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
+		foreach (qw[ ani man ]) {
+			fillPage($dbh,$_,$gui);
+		}
+		$$gui{status}->push(0,"Ready.");
+	}
 }
 print ".";
 

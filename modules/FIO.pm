@@ -61,5 +61,38 @@ sub loadConf {
 }
 print ".";
 
+sub gz_decom {
+	my ($ifn,$ofn,$guiref) = @_;
+	my $window = $$guiref{mainWin};
+	use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+	sub gzfail { 
+		PGUI::sayBox($window,$_);
+		return 0;
+		}
+	gunzip($ifn => $ofn, Autoclose => 1)
+		or gzfail($GunzipError);
+	return 1;
+}
+print ".";
+
+sub getFileName {
+	my ($caller,$parent,$guir,$title,$action,$oktext,$pattern) = @_;
+	unless (defined $parent) { $parent = $$gui{mainWin}; }
+	$$guir{status}->push(0,"Choosing file...");
+	my $filebox = Gtk2::FileChooserDialog->new($title,$parent,$action,'Cancel','cancel',$oktext,'accept');
+	my $filter = Gtk2::FileFilter->new();
+	$filter->add_pattern($pattern or "*");
+	$filebox->set_filter($filter);
+	my $filename = undef;
+	if ('accept' eq $filebox->run()) {
+		$filename = $filebox->get_filename();
+	} else {
+		$$guir{status}->push(0,"Import cancelled.");
+	}
+	$filebox->destroy();
+	return $filename;
+}
+print ".";
+
 print " OK; ";
 1;
