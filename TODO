@@ -7,8 +7,10 @@ FIX: SQLite can't recognize tables already exist, right now.
 
 Stuff that is trivial to implement:
 Option: display last episode watched, or next episode to watch?
+read config option and display percentage as either a label or a progress bar
 
 Stuff that can wait:
+Listing layout: switch to table instead of HBoxes in VBoxes
 Episode voting
 Episode name recording
 metadata functions

@@ -441,20 +441,30 @@ sub populateMainWin {
 print ".";
 
 sub buildTitleRows {
-	my ($titletype,$parent,%tlist) = @_;
-	# each item in hash is an array
-	if ("head" eq $titletype) { %tlist = ( '-1' => ["Title",0,"Score","?"]); }
+	my ($titletype,$parent,$tlist,@keys) = @_;
+	# each item in hash is a hash
 	my @rows;
-	foreach my $k (keys %tlist) { # loop over list
-		my @row = @{ $tlist{$k} };
+	foreach my $k (@keys) { # loop over list
+#		print "Building row for title $k...\n";
+		my %record = %{$$tlist{$k}};
 		my $hb = Gtk2::HBox->new(); # make an HBox
 		$hb->show();
-		$parent->pack_start($hb,0,0,1);
-# sid => sname, status, score, lastwatched (or lastrewatched), episodes, 
-		my $title = Gtk2::Label->new($row[0]); # put in the title of the series
+		if ($titletype eq 'head') {
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($hb);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or "#CCCCFF"));
+			$parent->pack_start($cb,0,0,1);
+		} else {
+			$parent->pack_start($hb,0,0,1);
+		}
+		my $title = Gtk2::Label->new($record{title}); # put in the title of the series
 		$title->show();
-		$hb->pack_start($title,1,1,1);
-		my $rew = Gtk2::Label->new(($row[1] == 3 ? "Rewatching" : "")); # put in the rewatching status
+		$title->set_alignment(0.0,0.1);
+		$title->set_width_chars(35);
+		$title->set_line_wrap(1);
+		$hb->pack_start($title,1,1,4);
+		my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Rewatching) " : "")); # put in the rewatching status
 		$rew->show();
 		$hb->pack_start($rew,0,0,1);
 		if ($titletype eq 'head') {
@@ -462,10 +472,29 @@ sub buildTitleRows {
 			$plabel->show();
 			$hb->pack_start($plabel,0,0,1);
 		} else {
+			my $pvbox = Gtk2::VBox->new();
+			$pvbox->show();
+			my $pchabox = Gtk2::HBox->new();
+			$pchabox->show();
+			$hb->pack_start($pvbox,0,0,1);
+			$pvbox->pack_start($pchabox,0,0,1);
 		# put in the number of watched/episodes (button) -- or chapters
+			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastrereadc}" : "$record{lastread}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
+			my $pbut = Gtk2::Button->new($pprog);
+			$pchabox->pack_start($pbut,1,1,1);
 		# link the button to a dialog asking for a new value
 		# put in a label giving the % completed (using watch or rewatched episodes)
+			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastrereadc} : $record{lastread} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100);
+		# read config option and display percentage as either a label or a progress bar	
+			my $percl = Gtk2::Label->new(sprintf("%.2f%%",$rawperc * 100));
+			$percl->show();
+			$pvbox->pack_end($percl,0,0,1);
 		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
+			unless ($record{status} == 4) {
+				my $incbut = Gtk2::Button->new("+");
+				$incbut->show();
+				$pchabox->pack_start($incbut,0,0,0);
+			}
 		# if manga, put in the number of read/volumes (button)
 		# link the button to a dialog asking for a new value
 		# if manga, put in a button to increment the number of volumes
@@ -481,11 +510,11 @@ sub buildTitleRows {
 			$hb->pack_start($tags,0,0,1);
 		}
 		if ($titletype eq 'head') {
-			my $score = Gtk2::Label->new($row[2]);
+			my $score = Gtk2::Label->new($record{score});
 			$score->show();
 			$hb->pack_start($score,0,0,1);
 		} else {
-			my $score = Gtk2::Button->new($row[2]); # put in the score
+			my $score = Gtk2::Button->new(sprintf("%.1f",$record{score} / 10)); # put in the score
 			$score->show();
 			$hb->pack_start($score,0,0,1);
 		}
@@ -493,6 +522,12 @@ sub buildTitleRows {
 		# put in button(s) for moving to another status? TODO later
 		$hb->show_all();
 		push(@rows,$hb);
+		if (config('UI','rulesep')) {
+			my $rule = Gtk2::HSeparator->new();
+			$rule->show();
+			$parent->pack_start($rule,0,0,0);
+			push(@rows,$rule);
+		}
 	} # end loop
 	return @rows;
 }
@@ -526,6 +561,8 @@ sub callOptBox {
 		'40' => ['c',"Show recent activity tab",'recenttab'],
 		'41' => ['c',"Recent tab active on startup",'activerecent'],
 		'42' => ['c',"Show progress bar for each title's progress",'graphicprogress'],
+		'43' => ['x',"Header background color code: ",'headerbg',"#CCCCFF"],
+		'44' => ['c',"Rule between each row",'rulesep'],
 
 		'50' => ['l',"Fonts",'Font'],
 		'51' => ['t',"Label font/size: ",'label'],
@@ -562,11 +599,13 @@ sub fillPage {
 	unless (defined $$gui{tabbar}) { Gtkdie("fillPage couldn't find tab bar!"); }
 	my $text = "???";
 	my $rowtyp = "???";
+	my $sortkey = 'title';
+	my %exargs;
 	for ($typ) {
 		if (/ani/) { $text = (config('Custom',$typ) or "Anime"); $rowtyp = "series"; }
 		elsif (/man/) { $text = (config('Custom',$typ) or "Manga"); $rowtyp = "pub"; }
-		elsif (/mov/) { $text = (config('Custom',$typ) or "Movies"); $rowtyp = "series"; }
-		elsif (/sam/) { $text = (config('Custom',$typ) or "Books"); $rowtyp = "pub"; }
+		elsif (/mov/) { $text = (config('Custom',$typ) or "Movies"); $rowtyp = "series"; $exargs{max} = 1; }
+		elsif (/sam/) { $text = (config('Custom',$typ) or "Books"); $rowtyp = "pub"; $exargs{max} = 1; }
 		else { $text = "Unknown"; }
 	}
 	my $label = Gtk2::Label->new($text);
@@ -578,8 +617,9 @@ sub fillPage {
 	foreach (keys %statuses) {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{secondvalue} = 3
-		# getByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		# pull list of titles from DB %a = %{ getByStatus($dbh,$rowtype,$_,%exargs) };
+		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
+		my $h = getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
+		my @keys = indexOrder($h,$sortkey);
 		# make a label
 		$labels{$_} = Gtk2::Label->new($statuses{$_});
 		$labels{$_}->set_alignment(0.05,0.5);
@@ -587,9 +627,15 @@ sub fillPage {
 		$labels{$_}->show();
 		my $zbox = Gtk2::VBox->new(); # make a box
 		$zbox->show();
-		buildTitleRows("head",$zbox);
+		my $tlist = { 'h' => {
+			title => "Title",
+			status => 0,
+			score => "Score",
+			sid => "?"
+		}};
+		buildTitleRows("head",$zbox,$tlist,'h');
 		# fill the box with titles
-		# buildTitleRows($rowtype,$zbox,%a)
+		buildTitleRows($rowtyp,$zbox,$h,@keys);
 		# compile statistics from @a
 		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
 		$boxesbystat{$_} = $zbox; # put box into %boxesbystat
@@ -646,6 +692,44 @@ sub importGUI {
 		}
 		$$gui{status}->push(0,"Ready.");
 	}
+}
+print ".";
+
+sub getTitlesByStatus {
+	my ($dbh,$rowtype,$status,%exargs) = @_;
+	my %stas = ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 );
+	my %rows;
+	my @parms;
+	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
+	$st = $st . ($rowtype eq 'series' ? ($status eq 'rew' ? "lastrewatched" : "lastwatched") : ($status eq 'rew' ? "lastrereadc" : "lastreadc")) . " FROM ";
+	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
+	push(@parms,$stas{$status});
+	if ($status eq 'wat') { push(@parms,$stas{rew}); }
+	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
+#	print "$st (@parms)=>";
+	my $href = PomalSQL::doQuery(3,$dbh,$st,@parms,$key);
+	return $href;
+}
+print ".";
+
+=item indexOrder()
+	Expects a reference to a hash that contains hashes of data as from fetchall_hashref.
+	This function will return an array of keys ordered by whichever internal hash key you provide.
+	@array from indexOrder($hashref,$]second-level key by which to sort first-level keys[)
+=cut
+sub indexOrder {
+	my ($hr,$orderkey) = @_;
+	my %hok;
+	foreach (keys %$hr) {
+		my $val = $_;
+		my $key = qq( $$hr{$_}{$orderkey} );
+		$hok{$key} = $val;
+	}
+	my @keys;
+	foreach (sort keys %hok){
+		push(@keys,$hok{$_});
+	}
+	return @keys;
 }
 print ".";
 

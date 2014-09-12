@@ -139,7 +139,7 @@ sub doQuery {
 		}
 	} elsif ($qtype == 3){
 		unless (@parms) {
-			print "Required field not supplied for doQuery(4). Give field name to act as hash keys.\n";
+			print "Required field not supplied for doQuery(3). Give field name to act as hash keys in final parameter.\n";
 			return ();
 		}
 		my $key = pop(@parms);

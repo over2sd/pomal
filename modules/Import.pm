@@ -149,6 +149,7 @@ sub storeMAL {
 				delete $data{$tags{partkey}}; 
 			}
 		}
+		$data{score} *= 10; # move from 10-point to 100-point scale
 		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash(\%data,$table,$found);
 #		print "e: $error c: $cmd p: " . join(",",@parms) . "\n";
 		# Insert/update row
