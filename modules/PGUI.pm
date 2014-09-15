@@ -733,5 +733,50 @@ sub indexOrder {
 }
 print ".";
 
+sub incrementPortion {
+	# grey out caller
+	# call updatePortion with value of value+1
+	# un-grey caller
+}
+print ".";
+
+sub updatePortion {
+	# update SQL table after verifying that it would not take the value over the maximum
+	# update the widgets that display the portion count
+	# ask to set complete if portions == total
+}
+print ".";
+
+sub askPortions {
+	# for when user clicks on display of portions completed
+	# grey out caller
+	# display an askbox to get new value
+	# call updatePortion with new value
+	# un-grey caller
+}
+print ".";
+
+sub chooseStatus {
+	# display a chooser dialogue without decoration that has a button for each status
+	# update SQL with new status
+	# refresh pages, if config option says to
+	# otherwise, change the label that is normally used for (rewatching) to indicate title has been moved
+}
+print ".";
+
+sub scoreSlider {
+	# for use when user clicks a score button
+	# grey out the button
+	# display a volume control from 0.0 to 10.0
+	# display a button for confirm, and one for cancel
+	# if confirmed, read slider for value
+	# multiply value by 10
+	# update SQL
+	# destroy slider window
+	# un-grey button
+	# update button text with new score value
+}
+print ".";
+
 print " OK; ";
 1;

@@ -115,5 +115,16 @@ sub findIn {
 }
 print ".";
 
+# Perhaps this should be loaded from an external file, so the user can modify it without diving into code?
+my %ambiguous = (
+	tag => ["tag_(context1)","tag_(context2)"],
+	othertag => ["othertag_(context1)","othertag_(context2)"]
+);
+sub disambig {
+	# if given a gui reference, display an askbox to select from options for disambiguation
+	# if tag is key in hash, return first value; otherwise, return tag
+}
+print ".";
+
 print " OK; ";
 1;

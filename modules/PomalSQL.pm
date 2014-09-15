@@ -161,7 +161,7 @@ print ".";
 sub table_exists {
 	my ($dbh,$table) = @_;
 	my $st = qq(SHOW TABLES LIKE ?;);
-	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT name FROM sqlite_master WHERE type='table' LIKE ?;); }
+	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?;); }
 	my $result = doQuery(0,$dbh,$st,$table);
 	return (length($result) == 0) ? 0 : 1;
 }
@@ -232,6 +232,7 @@ sub addTags {
 	# see if taglist is a real array or just csv
 	# if csv, split it into a real array
 	# foreach tag
+		# if so configured, check tag against ambiguity table
 		# check to see if the tag exists in the tag table
 		# if it doesn't, add it
 		# assign its ID to a variable
