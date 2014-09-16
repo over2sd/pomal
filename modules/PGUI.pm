@@ -407,7 +407,7 @@ sub dieWithErrorbox {
 	# display an error box. When user has pressed OK, kill caller and exit.
 	sayBox($caller,$text);
 	$caller->destroy();
-	Gtkdie(-2);
+	Gtkdie(,$text,-2);
 }
 print ".";
 
@@ -551,6 +551,7 @@ sub callOptBox {
 		'13' => ['t',"Login name (if required):",'user'],
 		'14' => ['c',"Server requires password",'password'],
 		'20' => ['c',"Update episode record with date on first change of episode"],
+		'19' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
 
 		'30' => ['l',"User Interface",'UI'],
 		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
@@ -741,7 +742,30 @@ sub incrementPortion {
 print ".";
 
 sub updatePortion {
+	my ($caller,$target,$value,$uptype,$titleid) = @_;
+	if (config('DB','conserve') eq 'net') { # updating objects
+		my $sobj = shift; # get object
+		# check if REF is for an Anime or Manga object
+		# increment portion count
+		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
+	} else {
+		my $dbh = shift;
+		unless (defined $dbh) {
+			my $win = getGUI(){mainWin};
+			dieWithErrorbox($win,"updatePortion was not passed a database handler!");
+		}
+		my @criteria = (
+			"series SET lastwatched",
+			"series SET lastrewatched",
+			"pub SET lastreadc",
+			"pub SET lastrereadc",
+			"pub SET lastreadv",
+			"pub SET lastrereadv",
+		);
+		my $st = "UPDATE $criteria[$uptype]=? WHERE " . ($uptype < 2 ? "sid" : "pid" ) . "=?";
+print "$st\n";
 	# update SQL table after verifying that it would not take the value over the maximum
+	}
 	# update the widgets that display the portion count
 	# ask to set complete if portions == total
 }

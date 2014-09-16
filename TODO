@@ -23,7 +23,7 @@ Allow titles to be arranged in different orders
 Options dialog box can probably wait
 Storage of alternate titles (including CJK support)
 Changing options immediately updates all tabs (requires hash of boxes to update)
-Decide if the project really needs Anime and Manga objects. They would have been useful for an XML backend, but with SQLite as the fallback, they might not be needed.
+The project still needs Anime and Manga objects. They will be useful for an option to preserve network traffic rather than memory footprint.
+Main context should create (and pass down) global references for the raows that'll go in the display tables, so that the program can rearrange the display without making SQL calls every time. But only if the abovementioned option is chosen.
 Manga storing of volumes, and automatic update of chapter count when a volume is marked complete
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
-Main context should create (and pass down) global references for the raows that'll go in the display tables, so that the program can rearrange the display without making SQL calls every time.
