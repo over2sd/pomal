@@ -61,6 +61,8 @@ print ".";
 my %windowset;
 sub getGUI {
 	unless (defined keys %windowset) { createMainWin(); }
+	my $key = shift;
+	if (defined $key) { return $windowset{$key}; }
 	return \%windowset;
 }
 print ".";
@@ -407,7 +409,7 @@ sub dieWithErrorbox {
 	# display an error box. When user has pressed OK, kill caller and exit.
 	sayBox($caller,$text);
 	$caller->destroy();
-	Gtkdie(,$text,-2);
+	Gtkdie(undef,$text,-2);
 }
 print ".";
 
@@ -442,11 +444,17 @@ print ".";
 
 sub buildTitleRows {
 	my ($titletype,$parent,$tlist,@keys) = @_;
+	my $updater;
 	# each item in hash is a hash
 	my @rows;
 	foreach my $k (@keys) { # loop over list
 #		print "Building row for title $k...\n";
 		my %record = %{$$tlist{$k}};
+		unless (config('DB','conserve') eq 'net') {
+			$updater = PomalSQL::getDB();
+		} else {
+			warn "Conserving net traffic is not yet supported";
+		}
 		my $hb = Gtk2::HBox->new(); # make an HBox
 		$hb->show();
 		if ($titletype eq 'head') {
@@ -494,6 +502,8 @@ sub buildTitleRows {
 				my $incbut = Gtk2::Button->new("+");
 				$incbut->show();
 				$pchabox->pack_start($incbut,0,0,0);
+				my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
+				$incbut->signal_connect("clicked",\&incrementPortion,[$pvbox,$updateform,$k,$updater]);
 			}
 		# if manga, put in the number of read/volumes (button)
 		# link the button to a dialog asking for a new value
@@ -735,23 +745,58 @@ sub indexOrder {
 print ".";
 
 sub incrementPortion {
-	# grey out caller
-	# call updatePortion with value of value+1
-	# un-grey caller
+	my ($caller,$args) = @_;
+	my ($target,$uptype,$titleid,$updater) = @$args;
+	print "incrementPortion(@$args)\n";
+	$caller->set_sensitive(0); # grey out caller
+	my $value;
+	if (config('DB','conserve') eq 'net') { # updating objects
+		my $sobj = $updater; # get object
+		# check if REF is for an Anime or Manga object
+		# use uptype for this?
+		# increment portion count
+		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
+	} else {
+		my $dbh = $updater;
+		unless (defined $dbh) {
+			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			my $win = getGUI(mainWin);
+			dieWithErrorbox($win,"incrementPortion was not passed a database handler!");
+		}
+		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
+		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastrereadc FROM pub WHERE pid=?"; }
+		if ($uptype > 3) { $st = "SELECT volumes,lastreadv,lastrereadv FROM pub WHERE pid=?"; }
+		print "$st\n";
+		my $res = PomalSQL::doQuery(5,$dbh,$st,$titleid);
+		$value = @$res[($uptype % 2 ? 2 : 1 )];
+		my $max = @$res[0];
+		unless ($value >= $max) { $value++; }
+	}
+	my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
+	print "$target\n";
+	# update the widgets that display the portion count
+	# ask to set complete if portions == total
+	$caller->set_sensitive(1); # un-grey caller
 }
 print ".";
 
 sub updatePortion {
-	my ($caller,$target,$value,$uptype,$titleid) = @_;
+	my ($uptype,$titleid,$value,$uph) = @_;
 	if (config('DB','conserve') eq 'net') { # updating objects
-		my $sobj = shift; # get object
+		my $sobj = $uph; # get object
 		# check if REF is for an Anime or Manga object
+		# use uptype for this?
 		# increment portion count
 		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
 	} else {
-		my $dbh = shift;
+		my $dbh = $uph;
 		unless (defined $dbh) {
-			my $win = getGUI(){mainWin};
+			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			my $win = getGUI(mainWin);
 			dieWithErrorbox($win,"updatePortion was not passed a database handler!");
 		}
 		my @criteria = (
@@ -764,10 +809,11 @@ sub updatePortion {
 		);
 		my $st = "UPDATE $criteria[$uptype]=? WHERE " . ($uptype < 2 ? "sid" : "pid" ) . "=?";
 print "$st\n";
-	# update SQL table after verifying that it would not take the value over the maximum
+		print $st," ",$value,"\n";
+		my $res = PomalSQL::doQuery(2,$dbh,$st,$value,$titleid); # update SQL table
+		print "$res\n";
 	}
-	# update the widgets that display the portion count
-	# ask to set complete if portions == total
+	return $value;
 }
 print ".";
 
@@ -799,6 +845,15 @@ sub scoreSlider {
 	# destroy slider window
 	# un-grey button
 	# update button text with new score value
+}
+print ".";
+
+sub unpackProgBox {
+		my ($pbox,$getvols) = @_;
+		my $countwidget,$percwidget;
+		# magically unpack box to get at children
+		warn "Not yet coded";
+		return $countwidget,$percwidget;
 }
 print ".";
 
