@@ -775,9 +775,12 @@ sub incrementPortion {
 		unless ($value >= $max) { $value++; }
 	}
 	my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
-	print "$target\n";
+	if ($result == 0) { warn "Oops!";
+	} else {
+		my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
 	# update the widgets that display the portion count
 	# ask to set complete if portions == total
+	}
 	$caller->set_sensitive(1); # un-grey caller
 }
 print ".";
@@ -808,10 +811,9 @@ sub updatePortion {
 			"pub SET lastrereadv",
 		);
 		my $st = "UPDATE $criteria[$uptype]=? WHERE " . ($uptype < 2 ? "sid" : "pid" ) . "=?";
-print "$st\n";
 		print $st," ",$value,"\n";
 		my $res = PomalSQL::doQuery(2,$dbh,$st,$value,$titleid); # update SQL table
-		print "$res\n";
+		unless ($res == 1) { sayBox(getGUI(mainWin),"Error: $res"); return 0; } # rudimentary error message for now...
 	}
 	return $value;
 }
@@ -851,7 +853,16 @@ print ".";
 sub unpackProgBox {
 		my ($pbox,$getvols) = @_;
 		my $countwidget,$percwidget;
-		# magically unpack box to get at children
+		my @kids = $pbox->get_children();
+		if (scalar @kids == 3) { # manga progress?
+			print "3 found...";
+		} elsif (scalar @kids == 2) { # anime progress?
+			my @gkids = $kids[0]->get_children();
+			print ".." , $gkids[0]->get_text();
+			
+		} else {
+			warn "Oops!" . scalar @kids . " children present in box";
+		}
 		warn "Not yet coded";
 		return $countwidget,$percwidget;
 }
