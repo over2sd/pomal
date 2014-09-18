@@ -480,6 +480,7 @@ sub buildTitleRows {
 			$plabel->show();
 			$hb->pack_start($plabel,0,0,1);
 		} else {
+			my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
 			my $pvbox = Gtk2::VBox->new();
 			$pvbox->show();
 			my $pchabox = Gtk2::HBox->new();
@@ -491,18 +492,27 @@ sub buildTitleRows {
 			my $pbut = Gtk2::Button->new($pprog);
 			$pchabox->pack_start($pbut,1,1,1);
 		# link the button to a dialog asking for a new value
+			$pbut->signal_connect("clicked",\&askPortion,[$pvbox,$updateform,$k,$updater]);
 		# put in a label giving the % completed (using watch or rewatched episodes)
 			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastrereadc} : $record{lastread} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100);
-		# read config option and display percentage as either a label or a progress bar	
-			my $percl = Gtk2::Label->new(sprintf("%.2f%%",$rawperc * 100));
-			$percl->show();
-			$pvbox->pack_end($percl,0,0,1);
+			my $pertxt = sprintf("%.2f%%",$rawperc * 100);
+		# read config option and display percentage as either a label or a progress bar
+			if (config('UI','graphicprogress')) {
+				my $percb = Gtk2::ProgressBar->new();
+				$percb->set_text($pertxt);
+				$percb->set_fraction($rawperc);
+				$percb->show();
+				$pvbox->pack_end($percb,0,0,1);
+			} else {
+				my $percl = Gtk2::Label->new($pertxt);
+				$percl->show();
+				$pvbox->pack_end($percl,0,0,1);
+			}
 		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
 			unless ($record{status} == 4) {
 				my $incbut = Gtk2::Button->new("+");
 				$incbut->show();
 				$pchabox->pack_start($incbut,0,0,0);
-				my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
 				$incbut->signal_connect("clicked",\&incrementPortion,[$pvbox,$updateform,$k,$updater]);
 			}
 		# if manga, put in the number of read/volumes (button)
@@ -747,41 +757,37 @@ print ".";
 sub incrementPortion {
 	my ($caller,$args) = @_;
 	my ($target,$uptype,$titleid,$updater) = @$args;
-	print "incrementPortion(@$args)\n";
+	if (0) { print "incrementPortion(@$args)\n"; }
 	$caller->set_sensitive(0); # grey out caller
-	my $value;
-	if (config('DB','conserve') eq 'net') { # updating objects
-		my $sobj = $updater; # get object
-		# check if REF is for an Anime or Manga object
-		# use uptype for this?
-		# increment portion count
-		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
-	} else {
-		my $dbh = $updater;
-		unless (defined $dbh) {
-			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
-		}
-		unless (defined $dbh) { # if that failed, I have to die.
-			my $win = getGUI(mainWin);
-			dieWithErrorbox($win,"incrementPortion was not passed a database handler!");
-		}
-		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
-		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastrereadc FROM pub WHERE pid=?"; }
-		if ($uptype > 3) { $st = "SELECT volumes,lastreadv,lastrereadv FROM pub WHERE pid=?"; }
-		print "$st\n";
-		my $res = PomalSQL::doQuery(5,$dbh,$st,$titleid);
-		$value = @$res[($uptype % 2 ? 2 : 1 )];
-		my $max = @$res[0];
-		unless ($value >= $max) { $value++; }
+	my ($value,$max) = getPortions($updater,$uptype,$titleid);
+	unless (defined $max) {
+		sayBox(getGUI(mainWin),"Error: Could not retrieve count max.");
+		$caller->set_sensitive(1); # un-grey caller
+		return;
 	}
+	unless ($value >= $max) { $value++; } else { return; }
 	my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
 	if ($result == 0) { warn "Oops!";
 	} else {
-		my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
-	# update the widgets that display the portion count
-	# ask to set complete if portions == total
+		setProgress($target,$uptype,$value,$max);
 	}
-	$caller->set_sensitive(1); # un-grey caller
+	if (defined $value and $value == $max) { # ask to set complete if portions == total
+		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
+	} else {
+		$caller->set_sensitive(1); # un-grey caller
+	}
+}
+print ".";
+
+sub setProgress {
+	my ($target,$uptype,$value,$max) = @_;
+	# update the widgets that display the portion count
+	my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
+	my $pprog = $value . "/" . $max;
+	$txtar->set_label($pprog);
+	my $rawperc = $value / ($max or 100);
+	if (ref($nutar) eq "Gtk2::ProgressBar") { $nutar->set_fraction($rawperc); }
+	$nutar->set_text(sprintf("%.2f%%",$rawperc * 100));
 }
 print ".";
 
@@ -811,7 +817,7 @@ sub updatePortion {
 			"pub SET lastrereadv",
 		);
 		my $st = "UPDATE $criteria[$uptype]=? WHERE " . ($uptype < 2 ? "sid" : "pid" ) . "=?";
-		print $st," ",$value,"\n";
+		if (0) { print $st," ",$value,"\n"; }
 		my $res = PomalSQL::doQuery(2,$dbh,$st,$value,$titleid); # update SQL table
 		unless ($res == 1) { sayBox(getGUI(mainWin),"Error: $res"); return 0; } # rudimentary error message for now...
 	}
@@ -819,18 +825,75 @@ sub updatePortion {
 }
 print ".";
 
-sub askPortions {
+sub askPortion {
 	# for when user clicks on display of portions completed
-	# grey out caller
-	# display an askbox to get new value
-	# call updatePortion with new value
-	# un-grey caller
+	my ($caller,$args) = @_;
+	my ($target,$uptype,$titleid,$updater) = @$args;
+	if (0) { print "askPortion(@$args)\n"; }
+	$caller->set_sensitive(0); # grey out caller
+	my ($value,$max) = getPortions($updater,$uptype,$titleid);
+	unless (defined $max) {
+		sayBox(getGUI(mainWin),"Error: Could not retrieve count max.");
+		$caller->set_sensitive(1); # un-grey caller
+		return;
+	}
+	my $response = PGUI::askBox(getGUI(mainWin),"Enter new value",($uptype < 2 ? "Episodes" : ($uptype < 4 ? "Chapters" : "Volumes" )),( nospace => 1, default => $value));
+	unless ($response =~ m/^[0-9]+$/) { # don't store bad input
+		if (defined $response) { sayBox(getGUI(mainWin),"'$response' does not appear to be a valid number."); } # only carp if user entered a number; blank could mean Esc/cancel
+		$caller->set_sensitive(1); # un-grey caller
+		return;
+	}
+	unless ($value > $max or $value < 0) { $value = $response; } else { sayBox(getGUI(mainWin),"'$response' is not between 0 and $max."); }
+	my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
+	if ($result == 0) { warn "Oops!";
+	} else {
+		setProgress($target,$uptype,$value,$max);
+	}
+	if (defined $value and $value == $max) { # ask to set complete if portions == total
+		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
+	} else {
+		$caller->set_sensitive(1); # un-grey caller
+	}
+}
+print ".";
+
+sub getPortions {
+	my ($updater,$uptype,$titleid) = @_;
+	if (config('DB','conserve') eq 'net') { # updating objects
+		my $sobj = $updater; # get object
+		# check if REF is for an Anime or Manga object
+		# use uptype for this?
+		# increment portion count
+		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
+	} else {
+		my $dbh = $updater;
+		unless (defined $dbh) {
+			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			my $win = getGUI(mainWin);
+			dieWithErrorbox($win,"getPortions was not passed a database handler!");
+		}
+		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
+		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastrereadc FROM pub WHERE pid=?"; }
+		if ($uptype > 3) { $st = "SELECT volumes,lastreadv,lastrereadv FROM pub WHERE pid=?"; }
+		if (0) { print "$st <= $titleid\n"; }
+		my $res = PomalSQL::doQuery(5,$dbh,$st,$titleid);
+		unless (defined $res) { return; } # no response: return
+		$value = @$res[($uptype % 2 ? 2 : 1 )];
+		$max = @$res[0];
+		print "Count: ($value/$max)\n";
+	}
+	return $value,$max;
 }
 print ".";
 
 sub chooseStatus {
 	# display a chooser dialogue without decoration that has a button for each status
-	# update SQL with new status
+#	my $data = { score => $value }
+#	$$data{sid} = $titleid OR $$data{pid} = $titleid
+	# update SQL
+#	my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,$found);
 	# refresh pages, if config option says to
 	# otherwise, change the label that is normally used for (rewatching) to indicate title has been moved
 }
@@ -843,7 +906,10 @@ sub scoreSlider {
 	# display a button for confirm, and one for cancel
 	# if confirmed, read slider for value
 	# multiply value by 10
+#	my $data = { score => $value }
+#	$$data{sid} = $titleid OR $$data{pid} = $titleid
 	# update SQL
+#	my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,$found);
 	# destroy slider window
 	# un-grey button
 	# update button text with new score value
@@ -852,19 +918,61 @@ print ".";
 
 sub unpackProgBox {
 		my ($pbox,$getvols) = @_;
-		my $countwidget,$percwidget;
+		my $countwidget,$percwidget,$pluswidget;
 		my @kids = $pbox->get_children();
 		if (scalar @kids == 3) { # manga progress?
 			print "3 found...";
 		} elsif (scalar @kids == 2) { # anime progress?
 			my @gkids = $kids[0]->get_children();
-			print ".." , $gkids[0]->get_text();
-			
+			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::Button") {
+				warn "Box improperly constructed! Found " . (ref($gkids[0]) or "undef") . " where Button expected";
+				return;
+			}
+			unless (defined $gkids[1] and ref($gkids[1]) eq "Gtk2::Button") {
+				warn "Box improperly constructed (nonfatal)! Found " . (ref($gkids[1]) or "undef") . " where Button expected";
+			} else {
+				$pluswidget = $gkids[1];
+			}
+			unless (defined $kids[1] and (ref($kids[1]) eq "Gtk2::Label" or ref($kids[1]) eq "Gtk2::ProgressBar")) {
+				warn "Box improperly constructed! Found " . (ref($kids[1]) or "undef") . " where Label or ProgressBar expected";
+				return;
+			}
+			$countwidget = $gkids[0]; $percwidget = $kids[1];
 		} else {
 			warn "Oops!" . scalar @kids . " children present in box";
 		}
-		warn "Not yet coded";
-		return $countwidget,$percwidget;
+		return $countwidget,$percwidget,$pluswidget;
+}
+print ".";
+
+sub askBox {
+	my ($parent,$text,$label,%exargs) = @_;
+	unless (defined $parent) { $parent = getGUI(mainWin); }
+	my $askbox = Gtk2::Dialog->new((sprintf $text or "Input"),$parent,[qw/modal destroy-with-parent/],'gtk-cancel' => 'cancel', 'gtk-ok' => 'ok');
+	$askbox->set_position('center-always');
+	my $vbox = $askbox->vbox;
+	my $row = Gtk2::HBox->new();
+	my $answer = $exargs{default} or "";
+	my $entry = Gtk2::Entry->new();
+	$entry->set_text($answer);
+	$entry->signal_connect("activate",sub { $askbox->response('ok'); });
+	$row->pack_start(Gtk2::Label->new($label),0,0,5);
+	$row->pack_start($entry,1,1,1);
+	$entry->grab_focus();
+	$vbox->pack_end($row,1,1,0);
+	my ($width,$height) = $askbox->get_size();
+#	$askbox->move((Gtk2::Gdk->screen_width() / 2) - ($width / 2),(Gtk2::Gdk->screen_height() / 2) - ($height / 2));
+	$askbox->show_all();
+#	$askbox->move((Gtk2::Gdk->screen_width() / 2) - ($width / 2),(Gtk2::Gdk->screen_height() / 2) - ($height / 2));
+	if ('ok' eq $askbox->run()) {
+		$answer = $entry->get_text();
+		if ($exargs{nospace}) { $answer =~ s/' '/'-'/g; } # Spaces not allowed.
+	} else {
+		print "Cancelled";
+		$answer = undef;
+	}
+	$askbox->destroy();
+	return $answer;
 }
 print ".";
 

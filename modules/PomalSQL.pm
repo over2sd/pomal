@@ -185,7 +185,7 @@ sub prepareFromHash {
 	my $idcol = $ids{$table} or return 1,"ERROR","Bad table name passed to prepareFromHash";
 	my %vals = %$href;
 	my @parms;
-	my $cmd = "$table";
+	my $cmd = ($table eq "series" ? "series" : "pub");
 	my @keys = @{$tablekeys{$table}};
 	unless ($update) {
 		my $valstxt = "VALUES (";
@@ -195,7 +195,6 @@ sub prepareFromHash {
 		push(@cols,$idcol);
 		print "$incolor";
 		foreach (keys %vals) {
-			my $pat = "m/$_/";
 			unless (Common::findIn($_,@keys) < 0) {
 				push(@cols,$_); # columns
 				push(@parms,$vals{$_}); # parms

@@ -7,7 +7,6 @@ FIX: SQLite can't recognize tables already exist, right now.
 
 Stuff that is trivial to implement:
 Option: display last episode watched, or next episode to watch?
-read config option and display percentage as either a label or a progress bar
 
 Stuff that can wait:
 Listing layout: switch to table instead of HBoxes in VBoxes
@@ -27,3 +26,4 @@ The project still needs Anime and Manga objects. They will be useful for an opti
 Main context should create (and pass down) global references for the raows that'll go in the display tables, so that the program can rearrange the display without making SQL calls every time. But only if the abovementioned option is chosen.
 Manga storing of volumes, and automatic update of chapter count when a volume is marked complete
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
+Make sure all SQL update functions use prepareFromHash (for uniformity and easier debugging)
