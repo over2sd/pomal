@@ -496,7 +496,7 @@ sub buildTitleRows {
 		# link the button to a dialog asking for a new value
 			$pebut->signal_connect("button_press_event",\&askPortion,[$pvbox,$updateform,$k,$updater]);
 		# put in a label giving the % completed (using watch or rewatched episodes)
-			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastrereadc} : $record{lastread} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100);
+			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100);
 			my $pertxt = sprintf("%.2f%%",$rawperc * 100);
 		# read config option and display percentage as either a label or a progress bar
 			if (config('UI','graphicprogress')) {
@@ -826,9 +826,11 @@ sub setProgress {
 	my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
 	my $pprog = $value . "/" . $max;
 	$txtar->set_text($pprog);
-	my $rawperc = $value / ($max or 100);
-	if (ref($nutar) eq "Gtk2::ProgressBar") { $nutar->set_fraction($rawperc); }
-	$nutar->set_text(sprintf("%.2f%%",$rawperc * 100));
+	unless ($uptype > 3) {
+		my $rawperc = $value / ($max or 100);
+		if (ref($nutar) eq "Gtk2::ProgressBar") { $nutar->set_fraction($rawperc); }
+		$nutar->set_text(sprintf("%.2f%%",$rawperc * 100));
+	}
 }
 print ".";
 
@@ -1027,11 +1029,11 @@ sub unpackProgBox {
 			} else {
 				$pluswidget = $gkids[1];
 			}
-			unless (defined $kids[1 + $index] and (ref($kids[1 + $index]) eq "Gtk2::Label" or ref($kids[1 + $index]) eq "Gtk2::ProgressBar")) {
-				warn "Box improperly constructed! Found " . (ref($kids[1 + $index]) or "undef") . " where Label or ProgressBar expected";
+			unless (defined $kids[2] and (ref($kids[2]) eq "Gtk2::Label" or ref($kids[2]) eq "Gtk2::ProgressBar")) {
+				warn "Box improperly constructed! Found " . (ref($kids[2]) or "undef") . " where Label or ProgressBar expected";
 				return;
 			}
-			$countwidget = $gkids[0]->get_child(); $percwidget = $kids[1 + $index];
+			$countwidget = $gkids[0]->get_child(); $percwidget = $kids[2];
 		} elsif (scalar @kids == 2) { # anime progress?
 			my @gkids = $kids[0]->get_children();
 			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::EventBox") {

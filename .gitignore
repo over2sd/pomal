@@ -22,3 +22,4 @@ nytprof.out
 add.sh
 *.dbl
 test.pl
+*.json

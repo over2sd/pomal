@@ -116,7 +116,7 @@ print ".";
 sub doQuery {
 	my ($qtype,$dbh,$statement,@parms) = @_;
 	my $realq;
-	print "Received '$statement' ",join(',',@parms),"\n";
+#	print "Received '$statement' ",join(',',@parms),"\n";
 	my $safeq = $dbh->prepare($statement);
 	unless (defined $safeq) { warn "Statement could not be prepared! Aborting statement!\n"; return undef; }
 	if($qtype == 0){ # expect a scalar
