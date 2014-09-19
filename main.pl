@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.09a";
+my $version = "0.1.918a";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -52,7 +52,7 @@ if ($remdb eq "yesIamSure") { # Debugging switch -x
 
 my $dbh = PGUI::loadDBwithSplashDetail();
 print "\nStarting GUI...\n";
-my $gui = PGUI::createMainWin();
+my $gui = PGUI::createMainWin($version);
 PGUI::populateMainWin($dbh,$gui);
 $| = 0; # return to buffered STDOUT
 Gtk2->main();

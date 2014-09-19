@@ -115,6 +115,17 @@ sub findIn {
 }
 print ".";
 
+sub nround {
+	my ($prec,$value) = @_;
+	use Math::Round qw( nearest );
+	my $target = 1;
+	while ($prec > 0) { $target /= 10; $prec--; }
+	while ($prec < 0) { $target *= 10; $prec++; } # negative precision gives 10s, 100s, etc.
+	if ($debug) { print "Value $value rounded to $target: " . nearest($target,$value) . ".\n"; }
+	return nearest($target,$value);
+}
+print ".";
+
 # Perhaps this should be loaded from an external file, so the user can modify it without diving into code?
 my %ambiguous = (
 	tag => ["tag_(context1)","tag_(context2)"],

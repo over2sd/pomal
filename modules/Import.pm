@@ -135,7 +135,7 @@ sub storeMAL {
 		# prepare statement, parms
 		my $safetable = $dbh->quote_identifier($table);
 		my $safeid = $dbh->quote_identifier($tags{idkey});
-		my $found = PomalSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $safetable WHERE $safeid=?",$data{$idkey}); # check to see if sid already present in DB
+		my $found = PomalSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $safetable WHERE $safeid=?",$data{$tags{idkey}}); # check to see if sid already present in DB
 		print "Found: $found ";
 		if($found) {
 			# config controls if user wants to update name and max episodes...

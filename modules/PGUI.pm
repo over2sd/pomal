@@ -12,8 +12,8 @@ sub Gtkdie {
 	my $win = shift;
 	if ($win) { $win->destroy(); }
 	my $text = shift;
-	my $text = ( defined $text ? " ($text)" : "" );
-	print "I am slain.$text\n";
+	my $text = ( defined $text ? ": $text" : "" );
+	print "Exit$text\n";
 	Gtk2->main_quit;
 	exit(shift or 0);
 }
@@ -50,10 +50,8 @@ sub createSplash {
 	$vb->pack_start($title,1,1,2);
 	$vb->pack_end($splashdetail,0,0,2);
 	$vb->pack_end($progress,0,0,2);
-	# look at config and try to connect to the database.
-	# if the database doesn't exist, try to create it.
-	# or if user has chosen to use flatfile, import the XML.
 	$window->show_all();
+	Gtkwait(0.1); # draw screen?
 	return $window,$splashdetail,$progress,$vb;
 }
 print ".";
@@ -68,10 +66,10 @@ sub getGUI {
 print ".";
 
 sub createMainWin {
-	my ($w,$h) = @_;
+	my ($version,$w,$h) = @_;
 	my $window = Gtk2::Window->new();
-	$window->set_title(config('Custom','program') or "PersonalOfflineManga/AnimeList");
-	$window->signal_connect (destroy => \&Gtkdie ); # not saving position/size
+	$window->set_title((config('Custom','program') or "PersonalOfflineManga/AnimeList") . " v.$version");
+	$window->signal_connect ('destroy',\&Gtkdie,"window closed"); # not saving position/size
 	if (config('Main','savepos')) {
 		unless ($w and $h) { $w = config('Main','width'); $h = config('Main','height'); }
 		$window->set_default_size($w,$h);
@@ -183,7 +181,7 @@ sub storeWindowExit {
 	} else {
 		print "Not storing window position. ";
 	}
-	Gtkdie($window,"Clean quit");
+	Gtkdie(undef,"normally");
 }
 print ".";
 
@@ -357,7 +355,7 @@ sub loadDBwithSplashDetail {
 	$prog->set_fraction(++$step/$steps);
 	$splash->present();
 	$splash->destroy();
-	print "Splash screen steps: $step/$steps\n";
+	if (0) { print "Splash screen steps: $step/$steps\n"; }
 	return $dbh;
 }
 print ".";
@@ -499,12 +497,14 @@ sub buildTitleRows {
 		# read config option and display percentage as either a label or a progress bar
 			if (config('UI','graphicprogress')) {
 				my $percb = Gtk2::ProgressBar->new();
+#				$percb->set_usize(100,10);
 				$percb->set_text($pertxt);
 				$percb->set_fraction($rawperc);
 				$percb->show();
 				$pvbox->pack_end($percb,0,0,1);
 			} else {
 				my $percl = Gtk2::Label->new($pertxt);
+#				$percl->set_usize(100,10);
 				$percl->show();
 				$pvbox->pack_end($percl,0,0,1);
 			}
@@ -537,6 +537,7 @@ sub buildTitleRows {
 			my $score = Gtk2::Button->new(sprintf("%.1f",$record{score} / 10)); # put in the score
 			$score->show();
 			$hb->pack_start($score,0,0,1);
+			$score->signal_connect('clicked',\&scoreSlider,[$k,$titletype,$updater]);
 		}
 		# put in a button to edit the title/list its volumes/episodes
 		# put in button(s) for moving to another status? TODO later
@@ -560,33 +561,34 @@ sub callOptBox {
 	my %opts = (
 		'00' => ['l',"General",'Main'],
 		'01' => ['c',"Save window positions",'savepos'],
-		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
-		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
+##		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
+##		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
 		'06' => ['c',"Store tracking site credentials gleaned from imported XML",'gleanfromXML'],
-		'07' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
+##		'07' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
 
 		'10' => ['l',"Database",'DB'],
 		'11' => ['r',"Database type:",'type',0,'M','MySQL','L','SQLite'],
 		'12' => ['t',"Server address:",'host'],
 		'13' => ['t',"Login name (if required):",'user'],
 		'14' => ['c',"Server requires password",'password'],
-		'20' => ['c',"Update episode record with date on first change of episode"],
-		'19' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
+##		'20' => ['c',"Update episode record with date on first change of episode"],
+##		'19' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
 
 		'30' => ['l',"User Interface",'UI'],
-		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
+##		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
 		'34' => ['c',"Notebook with tab for each status",'statustabs'],
-		'36' => ['c',"Put movies on a separate tab",'moviesapart'],
+##		'36' => ['c',"Put movies on a separate tab",'moviesapart'],
 		'38' => ['s',"Notebook tab position: ",'tabson',0,"left","top","right","bottom"],
-		'39' => ['c',"Show suggestions tab",'suggtab'],
-		'40' => ['c',"Show recent activity tab",'recenttab'],
-		'41' => ['c',"Recent tab active on startup",'activerecent'],
+##		'39' => ['c',"Show suggestions tab",'suggtab'],
+##		'40' => ['c',"Show recent activity tab",'recenttab'],
+##		'41' => ['c',"Recent tab active on startup",'activerecent'],
 		'42' => ['c',"Show progress bar for each title's progress",'graphicprogress'],
 		'43' => ['x',"Header background color code: ",'headerbg',"#CCCCFF"],
-		'44' => ['c',"Rule between each row",'rulesep'],
+		'44' => ['c',"5-star scoring",'starscore'],
+		'45' => ['c',"Limit scores to discrete points",'intscore'],
 
 		'50' => ['l',"Fonts",'Font'],
-		'51' => ['t',"Label font/size: ",'label'],
+		'51' => ['t',"Tab font/size: ",'label'],
 		'52' => ['t',"General font/size: ",'body'],
 		'53' => ['t',"Special font/size: ",'special'], # for lack of a better term
 
@@ -594,8 +596,8 @@ sub callOptBox {
 		'72' => ['t',"Anime:",'ani'],
 		'73' => ['t',"Manga:",'man'],
 		'71' => ['t',"POMAL:",'program'],
-		'74' => ['t',"Movies:",'mov'],
-		'75' => ['t',"Stand-alone Manga:",'sam'],
+##		'74' => ['t',"Movies:",'mov'],
+##		'75' => ['t',"Stand-alone Manga:",'sam'],
 
 		'90' => ['l',"Debug Options",'Debug'],
 		'91' => ['c',"Colored terminal output",'termcolors']
@@ -603,7 +605,7 @@ sub callOptBox {
 	# Make a window
 	# make a tabbed notebook
 	# for each section, make a notebook page
-	# notebook page should be a scrolled window, in case there are many options in the Section
+	# should notebook page be a scrolled window, in case there are many options in the Section?
 	# make a vbox to put all the options in a given Section in
 	# make a Close button
 	# make a Save button (calls saveConf())
@@ -670,8 +672,11 @@ sub fillPage {
 		$$gui{tabbar}->append_page($scroll,$label);
 		$scroll->add_with_viewport($box);
 		foreach (qw( wat onh ptw com drp )) { # specific order
-			$box->pack_start($labels{$_},0,0,1);
-			$box->pack_start($boxesbystat{$_},1,1,2); # place titlebystatus box in box
+			my $section = Gtk2::Frame->new();
+			$section->show();
+			$section->set_label_widget($labels{$_});
+			$section->add($boxesbystat{$_}); # place titlebystatus box in box
+			$box->pack_start($section,1,1,2);
 		}
 	} else {
 		$$gui{status}->push(0,"Placing titles in tabs...");
@@ -837,7 +842,7 @@ sub askPortion {
 		$caller->set_sensitive(1); # un-grey caller
 		return;
 	}
-	my $response = PGUI::askBox(getGUI(mainWin),"Enter new value",($uptype < 2 ? "Episodes" : ($uptype < 4 ? "Chapters" : "Volumes" )),( nospace => 1, default => $value));
+	my $response = PGUI::askBox(getGUI(mainWin),"Enter new value",($uptype < 2 ? "Episodes" : ($uptype < 4 ? "Chapters" : "Volumes" )),( nospace => 1, default => $value, panel => 1, position => 'mouse'));
 	unless ($response =~ m/^[0-9]+$/) { # don't store bad input
 		if (defined $response) { sayBox(getGUI(mainWin),"'$response' does not appear to be a valid number."); } # only carp if user entered a number; blank could mean Esc/cancel
 		$caller->set_sensitive(1); # un-grey caller
@@ -882,7 +887,7 @@ sub getPortions {
 		unless (defined $res) { return; } # no response: return
 		$value = @$res[($uptype % 2 ? 2 : 1 )];
 		$max = @$res[0];
-		print "Count: ($value/$max)\n";
+		if (1) { print "Count: ($value/$max)\n"; }
 	}
 	return $value,$max;
 }
@@ -901,18 +906,71 @@ print ".";
 
 sub scoreSlider {
 	# for use when user clicks a score button
-	# grey out the button
-	# display a volume control from 0.0 to 10.0
+	my ($caller,$args) = @_;
+	my ($titleid,$table,$dbh) = @$args;
+	$caller->set_sensitive(0); # grey out the button
+	my $value = $caller->get_label();
+	my $keepbox = 1;
+	my $valueset = 0;
+	my $scorepop = Gtk2::Window->new();
+	$scorepop->set_default_size(20,20);
+	$scorepop->set_decorated(0);
+	$scorepop->set_gravity('south-east');
+	$scorepop->set_position('mouse');
+	$scorepop->present();
+#	$scorepop->set_position('mouse');
+	my $box = Gtk2::VBox->new();
+	$box->show();
+	$scorepop->add($box);
+	my $slide = Gtk2::HScale->new();
+	$slide->set_range(0,(config('UI','starscale') ? 5 : 10));
+	$slide->set_increments((config('UI','intscore') ? 1 : (config('UI','starscale') ? 0.5 : 0.1)),1); # display a volume control from 0.0 to 10.0
+	$slide->set_digits(1);
+	$slide->set_size_request(400,-1);
+	$slide->set_value_pos('right');
+	$slide->set_value($value);
+	foreach ((config('UI','starscale') ? (1,2,3,4,5) : (1,2,3,4,5,6,7,8,9,10))) {
+		$slide->add_mark($_,'top',sprintf("%s",$_));
+	}
+	$slide->show();
+	$box->pack_start($slide,1,1,1);
+	
+	my $buttons = Gtk2::HBox->new();
+	$buttons->show();
+	$box->pack_end($buttons,0,0,1);
 	# display a button for confirm, and one for cancel
-	# if confirmed, read slider for value
-	# multiply value by 10
-#	my $data = { score => $value }
-#	$$data{sid} = $titleid OR $$data{pid} = $titleid
+	my $but = Gtk2::Button->new("Set");
+	$but->show();
+	$but->signal_connect('clicked',sub { $value = $slide->get_value(); $keepbox = 0; $valueset = 1; }); # if confirmed, read slider for value
+	$buttons->pack_end($but,0,0,1);
+	my $oops = Gtk2::Button->new("Cancel");
+	$oops->show();
+	$oops->signal_connect('clicked',sub { $keepbox = 0; });
+	$buttons->pack_end($oops,0,0,1);
+	while ($keepbox) {
+		Gtkwait(0.25);
+	}
+	if ($valueset) {
+		if (config('UI','intscore')) { $value = Common::nround(0,$value); }
+		my $data = { score => $value * 10 };
+		$$data{($table eq "series" ? 'sid' : 'pid')} = $titleid;
+		# TODO: update object instead of SQL if option is set
 	# update SQL
-#	my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,$found);
-	# destroy slider window
-	# un-grey button
+		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,1);
+		if ($error) {
+			saybox(getGUI(mainWin),"Error #$error: $parms[0]");
+		} else {
 	# update button text with new score value
+			my $success = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
+			if ($success == 1) {
+				$caller->set_label(sprintf("%.1f",$value));
+			} else {
+				sayBox(getGUI(mainWin),"Could not update score in SQL: " . $dbh->errstr);
+			}
+		}
+	}
+	$scorepop->destroy(); # destroy slider window
+	$caller->set_sensitive(1); # un-grey button
 }
 print ".";
 
@@ -949,7 +1007,8 @@ sub askBox {
 	my ($parent,$text,$label,%exargs) = @_;
 	unless (defined $parent) { $parent = getGUI(mainWin); }
 	my $askbox = Gtk2::Dialog->new((sprintf $text or "Input"),$parent,[qw/modal destroy-with-parent/],'gtk-cancel' => 'cancel', 'gtk-ok' => 'ok');
-	$askbox->set_position('center-always');
+	if ($exargs{panel}) { $askbox->set_decorated(0); } # no decoration
+	$askbox->set_position($exargs{position} or 'center-always');
 	my $vbox = $askbox->vbox;
 	my $row = Gtk2::HBox->new();
 	my $answer = $exargs{default} or "";
