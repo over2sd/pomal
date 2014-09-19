@@ -159,7 +159,7 @@ sub storeMAL {
 		}
 		$data{score} *= 10; # move from 10-point to 100-point scale
 		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash(\%data,$table,$found);
-#		print "e: $error c: $cmd p: " . join(",",@parms) . "\n";
+		print "e: $error c: $cmd p: " . join(",",@parms) . "\n";
 		# Insert/update row
 		$error = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
 		# process tags and add them to the DB

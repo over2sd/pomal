@@ -171,7 +171,7 @@ sub prepareFromHash {
 	my ($href,$table,$update) = @_;
 	my %tablekeys = (
 		series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
-		pub => ['pname','volumes','chapters','lastread','started','ended','score','content','rating','lastreread','readtimes','status','note']
+		pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note']
 		# episode, volume, chapter?
 	);
 	my ($upcolor,$incolor,$basecolor) = ("","","");

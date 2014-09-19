@@ -487,7 +487,7 @@ sub buildTitleRows {
 			$hb->pack_start($pvbox,0,0,0);
 			$pvbox->pack_start($pchabox,0,0,0);
 		# put in the number of watched/episodes (button) -- or chapters
-			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastrereadc}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
+			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
 			my $pbut = Gtk2::Label->new($pprog);
 			applyFont($pbut,2);
 			my $pebut = Gtk2::EventBox->new();
@@ -529,8 +529,7 @@ sub buildTitleRows {
 				$pvolbox->show();
 				$pvbox->pack_start($pvolbox,0,0,0);
 				# put in the number of watched/episodes (button) -- or chapters
-				my $vprog = ($record{status} == 4 ? "" : ($record{status} == 3 ? "$record{lastrereadv}" : "$record{lastreadv}" ) . "/$record{volumes}" );
-				my $vbut = Gtk2::Label->new($pprog);
+				my $vbut = Gtk2::Label->new("$record{lastreadv}/$record{volumes}");
 				applyFont($vbut,2);
 				my $vebut = Gtk2::EventBox->new();
 				$pvolbox->pack_start($vebut,1,1,0);
@@ -917,8 +916,8 @@ sub getPortions {
 			dieWithErrorbox($win,"getPortions was not passed a database handler!");
 		}
 		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
-		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastrereadc FROM pub WHERE pid=?"; }
-		if ($uptype > 3) { $st = "SELECT volumes,lastreadv,lastrereadv FROM pub WHERE pid=?"; }
+		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastreread FROM pub WHERE pid=?"; }
+		if ($uptype > 3) { $st = "SELECT volumes,lastreadv FROM pub WHERE pid=?"; }
 		if (0) { print "$st <= $titleid\n"; }
 		my $res = PomalSQL::doQuery(5,$dbh,$st,$titleid);
 		unless (defined $res) { return; } # no response: return
