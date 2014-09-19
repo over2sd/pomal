@@ -64,6 +64,7 @@ sub fromMAL {
 	my %info;
 	my $i = 0;
 	my $loop = $xml->read();
+	# these two hashes determine the hash key under which each XML tag will be stored:
 	my %anitags = External::getTags('MALa');
 	my %mantags = External::getTags('MALm');
 	while ($loop == 1 and $i++ < 16) {
@@ -132,6 +133,13 @@ sub storeMAL {
 	if ($returndata) {
 		return \%data;
 	} else {
+		unless (defined $dbh) {
+			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			my $win = getGUI(mainWin);
+			dieWithErrorbox($win,"storeMAL was not passed a database handler!");
+		}
 		# prepare statement, parms
 		my $safetable = $dbh->quote_identifier($table);
 		my $safeid = $dbh->quote_identifier($tags{idkey});

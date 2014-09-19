@@ -116,7 +116,7 @@ print ".";
 sub doQuery {
 	my ($qtype,$dbh,$statement,@parms) = @_;
 	my $realq;
-#	print "Received '$statement'\n";
+	print "Received '$statement' ",join(',',@parms),"\n";
 	my $safeq = $dbh->prepare($statement);
 	unless (defined $safeq) { warn "Statement could not be prepared! Aborting statement!\n"; return undef; }
 	if($qtype == 0){ # expect a scalar
@@ -171,7 +171,7 @@ sub prepareFromHash {
 	my ($href,$table,$update) = @_;
 	my %tablekeys = (
 		series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
-		pub => ['pname','lastread','started','ended','score','content','rating','lastreread','readtimes','status','note']
+		pub => ['pname','volumes','chapters','lastread','started','ended','score','content','rating','lastreread','readtimes','status','note']
 		# episode, volume, chapter?
 	);
 	my ($upcolor,$incolor,$basecolor) = ("","","");

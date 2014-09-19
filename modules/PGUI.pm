@@ -51,7 +51,6 @@ sub createSplash {
 	$vb->pack_end($splashdetail,0,0,2);
 	$vb->pack_end($progress,0,0,2);
 	$window->show_all();
-	Gtkwait(0.1); # draw screen?
 	return $window,$splashdetail,$progress,$vb;
 }
 print ".";
@@ -111,18 +110,18 @@ sub buildMenus {
 #		File >
 		my ($itemF,$f) = itemize("_File",$menus,$ag);
 #		File > Save (Only active if user chooses Flatfile DB)
-		my $itemFS = itemize("_Save",$f);
+##		my $itemFS = itemize("_Save",$f);
 #		accelerate($itemFS,"<Control>S",$ag);
 #		$itemFS->signal_connect("activate",\&FIO::saveData);
 #		File > Import
 		my $itemFI = itemize("_Import",$f);
 		$itemFI->signal_connect("activate",\&importGUI);
 #		File > Export
-		my $itemFE = itemize("_Export",$f);
+##		my $itemFE = itemize("_Export",$f);
 #		File > Synchronize
-		my $itemFO = itemize("Synchr_onize",$f);
+##		my $itemFO = itemize("Synchr_onize",$f);
 #		File > Preferences
-		my $itemFP = itemize("_Preferences",$f);
+##		my $itemFP = itemize("_Preferences",$f);
 #		File > Quit
 		my $itemFQ = itemize("_Quit",$f);
 #		accelerate($itemFQ,"<Control>Q",$ag);
@@ -130,7 +129,7 @@ sub buildMenus {
 #		Help >
 		my ($itemH,$h) = itemize("_Help",$menus,$ag);
 #		Help > About
-		my $itemHA = itemize("_About",$h);
+##		my $itemHA = itemize("_About",$h);
 
 	}
 	return $menus;
@@ -233,7 +232,7 @@ sub loadDBwithSplashDetail {
 		$splash->present();
 		until (defined $dbtype) {
 			if ($pulse) { $prog->pulse(); }
-			Gtkwait(1);
+			Gtkwait(0.03);
 		}
 		$text->push(0,"Saving database type...");
 		$prog->set_fraction(++$step/$steps);
@@ -305,7 +304,7 @@ sub loadDBwithSplashDetail {
 			$splash->present();
 			while ($stop) {
 				if ($pulse) { $prog->pulse(); }
-				Gtkwait(1);
+				Gtkwait(0.03);
 			}
 			$curstep->set_text("---");
 			# save data from entry boxes...
@@ -354,6 +353,7 @@ sub loadDBwithSplashDetail {
 	$text->push(0,"Done.");
 	$prog->set_fraction(++$step/$steps);
 	$splash->present();
+	Gtkwait(0.01); # draw screen
 	$splash->destroy();
 	if (0) { print "Splash screen steps: $step/$steps\n"; }
 	return $dbh;
@@ -379,7 +379,7 @@ sub askPass {
 	$parent->pack_start($vb,1,1,2);
 	$vb->show_all();
 	while ($stop) {
-		Gtkwait(1);
+		Gtkwait(0.1);
 	}
 	$pw = $pass->get_text(); # read pw from entry
 	$vb->destroy(); # destroy box
@@ -416,9 +416,10 @@ sub sayBox {
 	my $askbox = Gtk2::MessageDialog->new($parent,[qw/modal destroy-with-parent/],'question','ok',sprintf $text);
 	$askbox->set_markup($text);
 	my ($width,$height) = $askbox->get_size();
-	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # to prevent pop-shift of window
+#	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # to prevent pop-shift of window
 	$askbox->show_all();
-	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # in case it didn't work before display
+#	$askbox->move(int((Gtk2::Gdk->screen_width()/2) - ($width/2)),int((Gtk2::Gdk->screen_height()/2) - ($height/2))); # in case it didn't work before display
+	$askbox->set_position('center');
 	$askbox->run();
 	$askbox->destroy();
 	return 0;
@@ -470,7 +471,7 @@ sub buildTitleRows {
 		$title->set_width_chars(35);
 		$title->set_line_wrap(1);
 		$hb->pack_start($title,1,1,4);
-		my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Rewatching) " : "")); # put in the rewatching status
+		my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "")); # put in the rewatching status
 		$rew->show();
 		$hb->pack_start($rew,0,0,1);
 		if ($titletype eq 'head') {
@@ -483,14 +484,17 @@ sub buildTitleRows {
 			$pvbox->show();
 			my $pchabox = Gtk2::HBox->new();
 			$pchabox->show();
-			$hb->pack_start($pvbox,0,0,1);
-			$pvbox->pack_start($pchabox,0,0,1);
+			$hb->pack_start($pvbox,0,0,0);
+			$pvbox->pack_start($pchabox,0,0,0);
 		# put in the number of watched/episodes (button) -- or chapters
-			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastrereadc}" : "$record{lastread}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
-			my $pbut = Gtk2::Button->new($pprog);
-			$pchabox->pack_start($pbut,1,1,1);
+			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastrereadc}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
+			my $pbut = Gtk2::Label->new($pprog);
+			applyFont($pbut,2);
+			my $pebut = Gtk2::EventBox->new();
+			$pchabox->pack_start($pebut,1,1,0);
+			$pebut->add($pbut);
 		# link the button to a dialog asking for a new value
-			$pbut->signal_connect("clicked",\&askPortion,[$pvbox,$updateform,$k,$updater]);
+			$pebut->signal_connect("button_press_event",\&askPortion,[$pvbox,$updateform,$k,$updater]);
 		# put in a label giving the % completed (using watch or rewatched episodes)
 			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastrereadc} : $record{lastread} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100);
 			my $pertxt = sprintf("%.2f%%",$rawperc * 100);
@@ -498,26 +502,52 @@ sub buildTitleRows {
 			if (config('UI','graphicprogress')) {
 				my $percb = Gtk2::ProgressBar->new();
 #				$percb->set_usize(100,10);
+### TODO: figure out how to resize this widget
 				$percb->set_text($pertxt);
+				applyFont($percb,2);
 				$percb->set_fraction($rawperc);
 				$percb->show();
-				$pvbox->pack_end($percb,0,0,1);
+				$pvbox->pack_end($percb,0,0,0);
 			} else {
 				my $percl = Gtk2::Label->new($pertxt);
 #				$percl->set_usize(100,10);
+				applyFont($percl,2);
 				$percl->show();
-				$pvbox->pack_end($percl,0,0,1);
+				$pvbox->pack_end($percl,0,0,0);
 			}
 		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
 			unless ($record{status} == 4) {
 				my $incbut = Gtk2::Button->new("+");
+				applyFont($incbut,2);
 				$incbut->show();
 				$pchabox->pack_start($incbut,0,0,0);
 				$incbut->signal_connect("clicked",\&incrementPortion,[$pvbox,$updateform,$k,$updater]);
 			}
 		# if manga, put in the number of read/volumes (button)
-		# link the button to a dialog asking for a new value
-		# if manga, put in a button to increment the number of volumes
+			if ($titletype eq 'pub') {
+				my $pvolbox = Gtk2::HBox->new();
+				$pvolbox->show();
+				$pvbox->pack_start($pvolbox,0,0,0);
+				# put in the number of watched/episodes (button) -- or chapters
+				my $vprog = ($record{status} == 4 ? "" : ($record{status} == 3 ? "$record{lastrereadv}" : "$record{lastreadv}" ) . "/$record{volumes}" );
+				my $vbut = Gtk2::Label->new($pprog);
+				applyFont($vbut,2);
+				my $vebut = Gtk2::EventBox->new();
+				$pvolbox->pack_start($vebut,1,1,0);
+				$vebut->add($vbut);
+				# link the button to a dialog asking for a new value
+				my $upform = ($record{status} == 3 ? 5 : 4 );
+				print "Pub: $upform: ";
+				$vebut->signal_connect("button_press_event",\&askPortion,[$pvbox,$upform,$k,$updater]);
+				# put in a button to increment the number of volumes (using read or reread volumes)
+				unless ($record{status} == 4) {
+					my $incvbut = Gtk2::Button->new("+");
+					applyFont($incvbut,2);
+					$incvbut->show();
+					$pvolbox->pack_start($incvbut,0,0,0);
+					$incvbut->signal_connect("clicked",\&incrementPortion,[$pvbox,$upform,$k,$updater]);
+				}
+			}
 		}
 		if ($titletype eq 'head') {
 			my $tags = Gtk2::Label->new("Tags");
@@ -525,7 +555,7 @@ sub buildTitleRows {
 			$hb->pack_start($tags,0,0,1);
 		} else {
 			my $tags = Gtk2::Button->new("Show/Edit tags"); # put in the tag list (button?)
-			# use $k for callback; it should contain the series/pub id #.
+# use $k for callback; it should contain the series/pub id #.
 			$tags->show();
 			$hb->pack_start($tags,0,0,1);
 		}
@@ -590,7 +620,8 @@ sub callOptBox {
 		'50' => ['l',"Fonts",'Font'],
 		'51' => ['t',"Tab font/size: ",'label'],
 		'52' => ['t',"General font/size: ",'body'],
-		'53' => ['t',"Special font/size: ",'special'], # for lack of a better term
+		'59' => ['t',"Special font/size: ",'special'], # for lack of a better term
+		'53' => ['t',"Progress font/size: ",'progress'],
 
 		'70' => ['l',"Custom Text",'Custom'],
 		'72' => ['t',"Anime:",'ani'],
@@ -633,13 +664,13 @@ sub fillPage {
 	}
 	my $label = Gtk2::Label->new($text);
 	applyFont($label,1);
-	my %statuses = (wat=>"Watching",onh=>"On-hold",ptw=>"Plan to Watch",com=>"Completed",drp=>"Dropped"); # could be given i18n
+	my %statuses = (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped"); # could be given i18n
 	my %boxesbystat;
 	my %labels;
 	$$gui{status}->push(0,"Loading titles...");
 	foreach (keys %statuses) {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
-		# $exargs{secondvalue} = 3
+		# $exargs{maxparts} = 1
 		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
 		my $h = getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
 		my @keys = indexOrder($h,$sortkey);
@@ -696,7 +727,7 @@ print ".";
 
 sub applyFont {
 	my ($self,$index) = @_;
-	my $key = qw( body label special )[$index] or 'body';
+	my $key = qw( body label progress special )[$index] or 'body';
 	my $font = config('Font',$key);
 	if (defined $font) { $self->modify_font(Gtk2::Pango::FontDescription->from_string($font)); }
 }
@@ -721,19 +752,25 @@ sub importGUI {
 }
 print ".";
 
+my $counter = 0;
 sub getTitlesByStatus {
 	my ($dbh,$rowtype,$status,%exargs) = @_;
 	my %stas = ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 );
 	my %rows;
 	my @parms;
 	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
-	$st = $st . ($rowtype eq 'series' ? ($status eq 'rew' ? "lastrewatched" : "lastwatched") : ($status eq 'rew' ? "lastrereadc" : "lastreadc")) . " FROM ";
+	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched" : "lastreread,lastreadc") . " FROM ";
 	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
 	push(@parms,$stas{$status});
 	if ($status eq 'wat') { push(@parms,$stas{rew}); }
 	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
 #	print "$st (@parms)=>";
 	my $href = PomalSQL::doQuery(3,$dbh,$st,@parms,$key);
+if ($rowtype eq 'pub') {
+use Data::Dumper;
+print Dumper %$href;
+if (++$counter > 10) { exit(); }
+}
 	return $href;
 }
 print ".";
@@ -789,7 +826,7 @@ sub setProgress {
 	# update the widgets that display the portion count
 	my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
 	my $pprog = $value . "/" . $max;
-	$txtar->set_label($pprog);
+	$txtar->set_text($pprog);
 	my $rawperc = $value / ($max or 100);
 	if (ref($nutar) eq "Gtk2::ProgressBar") { $nutar->set_fraction($rawperc); }
 	$nutar->set_text(sprintf("%.2f%%",$rawperc * 100));
@@ -832,7 +869,7 @@ print ".";
 
 sub askPortion {
 	# for when user clicks on display of portions completed
-	my ($caller,$args) = @_;
+	my ($caller,$caller2,$args) = @_;
 	my ($target,$uptype,$titleid,$updater) = @$args;
 	if (0) { print "askPortion(@$args)\n"; }
 	$caller->set_sensitive(0); # grey out caller
@@ -895,7 +932,7 @@ print ".";
 
 sub chooseStatus {
 	# display a chooser dialogue without decoration that has a button for each status
-#	my $data = { score => $value }
+#	my $data = { status => $value }
 #	$$data{sid} = $titleid OR $$data{pid} = $titleid
 	# update SQL
 #	my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,$found);
@@ -980,9 +1017,25 @@ sub unpackProgBox {
 		my @kids = $pbox->get_children();
 		if (scalar @kids == 3) { # manga progress?
 			print "3 found...";
+			my $index = ($getvols ? 1 : 0);
+			my @gkids = $kids[$index]->get_children();
+			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::EventBox") {
+				warn "Box improperly constructed! Found " . (ref($gkids[0]) or "undef") . " where Button expected";
+				return;
+			}
+			unless (defined $gkids[1] and ref($gkids[1]) eq "Gtk2::Button") {
+				warn "Box improperly constructed (nonfatal)! Found " . (ref($gkids[1]) or "undef") . " where Button expected";
+			} else {
+				$pluswidget = $gkids[1];
+			}
+			unless (defined $kids[1 + $index] and (ref($kids[1 + $index]) eq "Gtk2::Label" or ref($kids[1 + $index]) eq "Gtk2::ProgressBar")) {
+				warn "Box improperly constructed! Found " . (ref($kids[1 + $index]) or "undef") . " where Label or ProgressBar expected";
+				return;
+			}
+			$countwidget = $gkids[0]->get_child(); $percwidget = $kids[1 + $index];
 		} elsif (scalar @kids == 2) { # anime progress?
 			my @gkids = $kids[0]->get_children();
-			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::Button") {
+			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::EventBox") {
 				warn "Box improperly constructed! Found " . (ref($gkids[0]) or "undef") . " where Button expected";
 				return;
 			}
@@ -995,7 +1048,7 @@ sub unpackProgBox {
 				warn "Box improperly constructed! Found " . (ref($kids[1]) or "undef") . " where Label or ProgressBar expected";
 				return;
 			}
-			$countwidget = $gkids[0]; $percwidget = $kids[1];
+			$countwidget = $gkids[0]->get_child(); $percwidget = $kids[1];
 		} else {
 			warn "Oops!" . scalar @kids . " children present in box";
 		}
