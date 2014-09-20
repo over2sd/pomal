@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.919a";
+my $version = "0.1.920a";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -27,12 +27,13 @@ use lib "./modules/";
 
 # print "Loading modules...";
 
-use PomalSQL;
-use Anime;
-use Manga;
 use FIO qw( loadConf );
 
 FIO::loadConf($conffilename);
+
+use PomalSQL;
+use Anime;
+use Manga;
 
 # perhaps load these on-the-fly when they are needed?
 use External;

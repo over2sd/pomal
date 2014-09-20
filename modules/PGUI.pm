@@ -59,7 +59,23 @@ my %windowset;
 sub getGUI {
 	unless (defined keys %windowset) { createMainWin(); }
 	my $key = shift;
-	if (defined $key) { return $windowset{$key}; }
+	if (defined $key) {
+		if (exists $windowset{$key}) {
+			return $windowset{$key};
+		} elsif ($key eq "tables") {
+			my $tables = {};
+			foreach (qw/ ani man /) {
+				foreach my $stat (qw/ wat ptw onh com drp /) {
+#					print "Making table " . $_ . $stat . ".\n";
+					$$tables{$_.$stat} = Gtk2::Table->new(1,6,0);
+				}
+			}
+			$windowset{$key} = $tables;
+			return $tables;
+		} else {
+			return undef;
+		}
+	}
 	return \%windowset;
 }
 print ".";
@@ -426,9 +442,22 @@ sub sayBox {
 }
 print ".";
 
+sub menuRepop {
+	my $dbh = getDB();
+	my $gui = getGUI();
+	populateMainWin($dbh,$gui,1);
+}
+print ".";
+
 sub populateMainWin {
-	my ($dbh,$gui) = @_;
-	$$gui{status}->push(0,"Building UI...");
+	my ($dbh,$gui,$refresh) = @_;
+	$$gui{status}->push(0,($refresh ? "Reb" : "B") . "uilding UI...");
+	if (defined $$gui{tabbar}) {
+		unless ($refresh) { warn "populateMainWin called twice without refresh flag"; return; }
+		$$gui{tabbar}->destroy(); # refresh
+	} 
+	# TODO: Refresh should check to see if there are existing objects (if conserving net traffic) and use those, if possible
+	# TODO: Refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
 	my $note = Gtk2::Notebook->new();
 	$note->show();
 	$$gui{vbox}->pack_start($note,1,1,2);
@@ -442,11 +471,16 @@ sub populateMainWin {
 print ".";
 
 sub buildTitleRows {
-	my ($titletype,$parent,$tlist,@keys) = @_;
+	my ($titletype,$target,$tlist,$rownum,@keys) = @_;
 	my $updater;
+	my $headcolor = "#CCCCFF";
 	# each item in hash is a hash
 	my @rows;
+	my $needrows = scalar @keys * (config('UI','rulesep') ? 2 : 1) + $rownum;
+	my ($w,$h) = $target->get_size();
+	if ($h < $needrows) { $target->resize($w,$needrows); }
 	foreach my $k (@keys) { # loop over list
+		$rownum++;
 #		print "Building row for title $k...\n";
 		my %record = %{$$tlist{$k}};
 		unless (config('DB','conserve') eq 'net') {
@@ -454,37 +488,52 @@ sub buildTitleRows {
 		} else {
 			warn "Conserving net traffic is not yet supported";
 		}
-		my $hb = Gtk2::HBox->new(); # make an HBox
-		$hb->show();
 		if ($titletype eq 'head') {
-			my $cb = Gtk2::EventBox->new();
-			$cb->add($hb);
-			$cb->show();
-			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or "#CCCCFF"));
-			$parent->pack_start($cb,0,0,1);
+			if (config('UI','linenos')) {
+				my $nolabel = Gtk2::Label->new("#");
+				my $cb = Gtk2::EventBox->new();
+				$cb->add($nolabel);
+				$cb->show();
+				$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+				$target->attach($cb,0,1,0,1,qw( fill ),qw( fill ),0,0);
+			}
+			$rownum--; 
 		} else {
-			$parent->pack_start($hb,0,0,1);
+			my $nolabel = Gtk2::Label->new((config('UI','linenos') ? "$rownum" : ""));
+			$target->attach($nolabel,0,1,$rownum,$rownum+1,qw( fill ),qw( fill ),7,0);
 		}
 		my $title = Gtk2::Label->new($record{title}); # put in the title of the series
 		$title->show();
 		$title->set_alignment(0.0,0.1);
 		$title->set_width_chars(35);
 		$title->set_line_wrap(1);
-		$hb->pack_start($title,1,1,4);
+		if ($titletype eq 'head') {
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($title);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+			$target->attach($cb,1,2,0,1,qw( fill ),qw( fill ),0,0);
+		} else {
+			$target->attach($title,1,2,$rownum,$rownum+1,qw( fill ),qw( shrink),0,0);
+		}
 		my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "")); # put in the rewatching status
 		$rew->show();
-		$hb->pack_start($rew,0,0,1);
+		$target->attach($rew,2,3,$rownum,$rownum+1,qw( shrink ),qw( shrink),0,0);
 		if ($titletype eq 'head') {
 			my $plabel = Gtk2::Label->new("Progress");
 			$plabel->show();
-			$hb->pack_start($plabel,0,0,1);
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($plabel);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+			$target->attach($cb,3,4,0,1,qw( fill ),qw( fill ),2,0);
 		} else {
 			my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
 			my $pvbox = Gtk2::VBox->new();
 			$pvbox->show();
 			my $pchabox = Gtk2::HBox->new();
 			$pchabox->show();
-			$hb->pack_start($pvbox,0,0,0);
+			$target->attach($pvbox,3,4,$rownum,$rownum+1,qw( shrink ),qw( shrink),2,0);
 			$pvbox->pack_start($pchabox,0,0,0);
 		# put in the number of watched/episodes (button) -- or chapters
 			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
@@ -551,32 +600,40 @@ sub buildTitleRows {
 		if ($titletype eq 'head') {
 			my $tags = Gtk2::Label->new("Tags");
 			$tags->show();
-			$hb->pack_start($tags,0,0,1);
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($tags);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+			$target->attach($cb,4,5,0,1,qw( fill ),qw( fill ),0,0);
 		} else {
 			my $tags = Gtk2::Button->new("Show/Edit tags"); # put in the tag list (button?)
 # use $k for callback; it should contain the series/pub id #.
 			$tags->show();
-			$hb->pack_start($tags,0,0,1);
+			$target->attach($tags,4,5,$rownum,$rownum+1,qw( shrink ),qw( shrink),1,0);
 		}
 		if ($titletype eq 'head') {
 			my $score = Gtk2::Label->new($record{score});
 			$score->show();
-			$hb->pack_start($score,0,0,1);
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($score);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+			$target->attach($cb,5,6,0,1,qw( fill ),qw( fill ),2,0);
 		} else {
 			my $score = Gtk2::Button->new(sprintf("%.1f",$record{score} / 10)); # put in the score
 			$score->show();
-			$hb->pack_start($score,0,0,1);
+			$target->attach($score,5,6,$rownum,$rownum+1,qw( shrink ),qw( shrink),1,0);
 			$score->signal_connect('clicked',\&scoreSlider,[$k,$titletype,$updater]);
 		}
 		# put in a button to edit the title/list its volumes/episodes
 		# put in button(s) for moving to another status? TODO later
-		$hb->show_all();
-		push(@rows,$hb);
-		if (config('UI','rulesep')) {
+		$target->show_all();
+##		if (config('DB','conserve') eq 'net') { my $obj = buildObjFromHash($titletype,%record); push(@rows,$obj); } # for conserving net traffic
+		if ($titletype ne 'head' and config('UI','rulesep')) {
 			my $rule = Gtk2::HSeparator->new();
 			$rule->show();
-			$parent->pack_start($rule,0,0,0);
-			push(@rows,$rule);
+			$rownum++;
+			$target->attach($rule,1,5,$rownum,$rownum+1,qw( fill ),qw( shrink),7,1);
 		}
 	} # end loop
 	return @rows;
@@ -615,6 +672,7 @@ sub callOptBox {
 		'43' => ['x',"Header background color code: ",'headerbg',"#CCCCFF"],
 		'44' => ['c',"5-star scoring",'starscore'],
 		'45' => ['c',"Limit scores to discrete points",'intscore'],
+		'46' => ['c',"Show count in section tables",'linenos'],
 
 		'50' => ['l',"Fonts",'Font'],
 		'51' => ['t',"Tab font/size: ",'label'],
@@ -667,6 +725,7 @@ sub fillPage {
 	my %boxesbystat;
 	my %labels;
 	$$gui{status}->push(0,"Loading titles...");
+	my $tref = getGUI('tables'); # doing this way instead of pulling from existing GUI because, if not present, this function will create them
 	foreach (keys %statuses) {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{maxparts} = 1
@@ -678,20 +737,21 @@ sub fillPage {
 		$labels{$_}->set_alignment(0.05,0.5);
 		applyFont($labels{$_},1);
 		$labels{$_}->show();
-		my $zbox = Gtk2::VBox->new(); # make a box
-		$zbox->show();
+#		print "Looking for " . $typ . $_ . "...";
+		my $table = $$tref{$typ.$_};
+		$table->show();
 		my $tlist = { 'h' => {
 			title => "Title",
 			status => 0,
 			score => "Score",
 			sid => "?"
 		}};
-		buildTitleRows("head",$zbox,$tlist,'h');
+		buildTitleRows("head",$table,$tlist,0,'h');
 		# fill the box with titles
-		buildTitleRows($rowtyp,$zbox,$h,@keys);
+		buildTitleRows($rowtyp,$table,$h,0,@keys);
 		# compile statistics from @a
 		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-		$boxesbystat{$_} = $zbox; # put box into %boxesbystat
+		$boxesbystat{$_} = $table; # put box into %boxesbystat
 	}
 	unless (config('UI','statustabs') or 0) {
 		$$gui{status}->push(0,"Placing titles in box...");
@@ -737,6 +797,7 @@ sub importGUI {
 	my $dbh = PomalSQL::getDB();
 	my $gui = getGUI();
 	my $error = Import::importXML($dbh,$gui);
+	print "Error: $error\n";
 	unless($error) {
 		$$gui{tabbar}->destroy();
 		$$gui{tabbar} = Gtk2::Notebook->new();
@@ -765,11 +826,6 @@ sub getTitlesByStatus {
 	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
 #	print "$st (@parms)=>";
 	my $href = PomalSQL::doQuery(3,$dbh,$st,@parms,$key);
-if ($rowtype eq 'pub') {
-use Data::Dumper;
-print Dumper %$href;
-if (++$counter > 10) { exit(); }
-}
 	return $href;
 }
 print ".";

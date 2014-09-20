@@ -11,22 +11,26 @@ my $dbh;
 sub getDB {
 	if (defined $dbh) { return $dbh; }
 	my ($dbtype) = shift;
+	unless (defined $dbtype) { $dbtype = FIO::config('DB','type'); } # try to save
 	use DBI;
 	if ($dbtype eq "L") { # for people without access to a SQL server
 		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
+		$dbh->do("SET NAMES 'utf8'");
 	} elsif ($dbtype eq "M") {
 		my $host = shift || 'localhost';
 		my $base = shift || 'pomal';
 		my $password = shift || '';
 		my $username = shift || whoAmI();
 		# connect to the database
+		my $flags = { mysql_enable_utf8 => 1 };
 		if ($password ne '') {
-			$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username,$password,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		} else {
-			$dbh = DBI->connect("DBI:mysql:$base:$host",$username) ||
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username,undef,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		}
+		$dbh->do("SET NAMES 'utf8'");
 	} else { #bad/no DB type
 		return undef,"Bad/no DB type passed to getDB! (" . ($dbtype or "undef") . ")";
 	}
@@ -62,11 +66,12 @@ sub makeDB {
 		unless ($dbh->func("createdb", $newbase, 'admin')) { return undef,$DBI::errstr; }
 	} elsif ($dbtype eq "M") {
 		# connect to the database
+		my $flags = { mysql_enable_utf8 => 1 };
 		if ($password ne '') {
-			$dbh = DBI->connect("DBI:mysql::$host",$username, $password) ||
+			$dbh = DBI->connect("DBI:mysql::$host",$username, $password,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		} else {
-			$dbh = DBI->connect("DBI:mysql::$host",$username) ||
+			$dbh = DBI->connect("DBI:mysql::$host",$username,undef,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		}
 		my $newbase = $dbh->quote_identifier($base); # just in case...
@@ -78,11 +83,12 @@ sub makeDB {
 		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
 	} elsif ($dbtype eq "M") {
 		# connect to the database
+		my $flags = { mysql_enable_utf8 => 1 };
 		if ($password ne '') {
-			$dbh = DBI->connect("DBI:mysql:$base:$host",$username, $password) ||
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username,$password,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		} else {
-			$dbh = DBI->connect("DBI:mysql:$base:$host",$username) ||
+			$dbh = DBI->connect("DBI:mysql:$base:$host",$username,undef,$flags) ||
 				return undef, qq{DBI error from connect: "$DBI::errstr"};
 		}
 	}
