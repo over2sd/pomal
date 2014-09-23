@@ -9,6 +9,8 @@ Install script that checks for and pulls unsatisfied Perl dependencies?
 The project still needs Anime and Manga objects. They will be useful for an option to preserve network traffic rather than memory footprint.
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
 Recent activity timeline with buttons for five most recent shows, plus list of activity within the past n days.
+Storage of additional title information
+Start rewatching show button (use undo icon to save button space?)
 
 Roadmap
 =======
@@ -23,7 +25,7 @@ Met 14/09/22: Import should (using fillPage?) update the display when it finishe
 Met 14/09/22: Import should display a sayBox with the count of successfully imported/updated titles.
 FIXED 14/09/22: SQLite can't recognize tables already exist, right now. That took an ugly hack.
 Met 14/09/22: Make sure all SQL update functions use prepareFromHash (for uniformity and easier debugging)
-When building title rows, put in button(s) for moving to another status
+Met 14/09/23: When building title rows, put in button(s) for moving to another status
 Options dialog box
 Changing options immediately updates all tabs (link to confirmation button, not individual options)
 
@@ -45,3 +47,4 @@ Manga storing of volumes (chapter column in volume table), and automatic update 
 tab refresh should check to see if there are existing objects (if conserving net traffic) and use those, if possible
 tab refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
 Import JSON objects (ImportHum)
+Pretty up the display tables

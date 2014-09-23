@@ -167,6 +167,11 @@ sub storeMAL {
 		$error = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
 		# process tags and add them to the DB
 		$error = PomalSQL::addTags($dbh,substr($table,0,1),$data{$tags{idkey}},$data{$tags{tagkey}});
+	# TODO: make error code persistent and meaningfully combined from each called program
+	# if extra data mode is on:
+		# pull ID of inserted row (if not using import ID)
+		# call pFH again with the extra-info option
+		# insert/update row in extra-info table
 		return $found,$error;
 	}
 }

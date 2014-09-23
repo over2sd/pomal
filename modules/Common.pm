@@ -137,5 +137,20 @@ sub disambig {
 }
 print ".";
 
+sub revGet { # works best on a 1:1 hash
+	my ($target,$default,%hash) = @_;
+	foreach (keys %hash) {
+		return $_ if ($target eq $hash{$_});
+	}
+	return $default;
+}
+print ".";
+
+# Status hashes
+sub getStatHash { my $typ = shift; return (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped"); } # could be given i18n
+sub getStatOrder { return qw( wat onh ptw com drp ); }
+sub getStatIndex { return ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 ); }
+print ".";
+
 print " OK; ";
 1;

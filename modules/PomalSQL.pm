@@ -177,8 +177,9 @@ sub table_exists {
 print ".";
 
 sub prepareFromHash {
-	my ($href,$table,$update) = @_;
+	my ($href,$table,$update,$extra) = @_;
 	my %tablekeys = (
+#		series_extra => ['alttitle',], #		pub_extra => ['alttitle',] #		episode => [], #		volume => [], #		chapter => [],
 		series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
 		pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note']
 		# episode, volume, chapter?

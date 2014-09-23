@@ -472,6 +472,7 @@ print ".";
 
 sub buildTitleRows {
 	my ($titletype,$target,$tlist,$rownum,@keys) = @_;
+	my $rowshown = $rownum;
 	my $updater;
 	my $headcolor = "#CCCCFF";
 	# each item in hash is a hash
@@ -480,7 +481,7 @@ sub buildTitleRows {
 	my ($w,$h) = $target->get_size();
 	if ($h < $needrows) { $target->resize($w,$needrows); }
 	foreach my $k (@keys) { # loop over list
-		$rownum++;
+		$rownum++; $rowshown++;
 #		print "Building row for title $k...\n";
 		my %record = %{$$tlist{$k}};
 		unless (config('DB','conserve') eq 'net') {
@@ -499,7 +500,7 @@ sub buildTitleRows {
 			}
 			$rownum--; 
 		} else {
-			my $nolabel = Gtk2::Label->new((config('UI','linenos') ? "$rownum" : ""));
+			my $nolabel = Gtk2::Label->new((config('UI','linenos') ? "$rowshown" : ""));
 			$target->attach($nolabel,0,1,$rownum,$rownum+1,qw( fill ),qw( fill ),7,0);
 		}
 		my $title = Gtk2::Label->new($record{title}); # put in the title of the series
@@ -516,9 +517,27 @@ sub buildTitleRows {
 		} else {
 			$target->attach($title,1,2,$rownum,$rownum+1,qw( fill ),qw( shrink),0,0);
 		}
-		my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "")); # put in the rewatching status
-		$rew->show();
-		$target->attach($rew,2,3,$rownum,$rownum+1,qw( shrink ),qw( shrink),0,0);
+		my $rbox = Gtk2::HBox->new();
+		$rbox->show();
+		if ($titletype eq 'head') {
+			my $cb = Gtk2::EventBox->new();
+			$cb->add($rbox);
+			$cb->show();
+			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+			$target->attach($cb,2,3,0,1,qw( fill ),qw( fill ),0,0);
+		} else {
+			my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "")); # put in the rewatching status
+			$rew->show();
+			$rbox->pack_start($rew,1,1,1);
+			unless ($record{status} == 4) { # No move button for completed page
+				my $rbut = Gtk2::Button->new("m");
+				$rbut->show();
+				$rbox->pack_start($rbut,1,0,1);
+				my $status = $record{status};
+				$rbut->signal_connect('clicked',\&chooseStatus,[$rew,\$status,$k,$titletype]);
+			} # but there might some day be a "Rewatch this show" button here
+			$target->attach($rbox,2,3,$rownum,$rownum+1,qw( shrink ),qw( shrink),0,0);
+		}
 		if ($titletype eq 'head') {
 			my $plabel = Gtk2::Label->new("Progress");
 			$plabel->show();
@@ -662,6 +681,7 @@ sub callOptBox {
 		'14' => ['c',"Server requires password",'password'],
 ##		'20' => ['c',"Update episode record with date on first change of episode"],
 ##		'19' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
+##		'15' => ['c',"Maintain extended information table",'exinfo'],
 
 		'30' => ['l',"User Interface",'UI'],
 ##		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
@@ -676,6 +696,8 @@ sub callOptBox {
 		'44' => ['c',"5-star scoring",'starscore'],
 		'45' => ['c',"Limit scores to discrete points",'intscore'],
 		'46' => ['c',"Show count in section tables",'linenos'],
+		'47' => ['c',"Refresh pages when title is moved",'moveredraw'],
+##		'48' => ['c',"Move to active when changing parts seen",'incmove'],
 
 		'50' => ['l',"Fonts",'Font'],
 		'51' => ['t',"Tab font/size: ",'label'],
@@ -724,7 +746,7 @@ sub fillPage {
 	}
 	my $label = Gtk2::Label->new($text);
 	applyFont($label,1);
-	my %statuses = (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped"); # could be given i18n
+	my %statuses = Common::getStatHash($typ);
 	my %boxesbystat;
 	my %labels;
 	$$gui{status}->push(0,"Loading titles...");
@@ -764,7 +786,7 @@ sub fillPage {
 		$scroll->show();
 		$$gui{tabbar}->append_page($scroll,$label);
 		$scroll->add_with_viewport($box);
-		foreach (qw( wat onh ptw com drp )) { # specific order
+		foreach (Common::getStatOrder()) { # specific order
 			my $section = Gtk2::Frame->new();
 			$section->show();
 			$section->set_label_widget($labels{$_});
@@ -776,7 +798,7 @@ sub fillPage {
 		my $snote = Gtk2::Notebook->new(); # make statuses tab notebook
 		$snote->show();
 		if (defined config('UI','tabson')) { $snote->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
-		foreach (qw( wat onh ptw com drp )) { # specific order
+		foreach (Common::getStatOrder()) { # specific order
 			my $newscroll = Gtk2::ScrolledWindow->new();
 			$newscroll->show();
 			$snote->append_page($newscroll,$labels{$_}); # make tab for this status
@@ -811,7 +833,7 @@ print ".";
 my $counter = 0;
 sub getTitlesByStatus {
 	my ($dbh,$rowtype,$status,%exargs) = @_;
-	my %stas = ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 );
+	my %stas = Common::getStatIndex();
 	my %rows;
 	my @parms;
 	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
@@ -983,13 +1005,45 @@ sub getPortions {
 print ".";
 
 sub chooseStatus {
-	# display a chooser dialogue without decoration that has a button for each status
-#	my $data = { status => $value }
-#	$$data{sid} = $titleid OR $$data{pid} = $titleid
-	# update SQL
-#	my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$table,$found);
-	# refresh pages, if config option says to
-	# otherwise, change the label that is normally used for (rewatching) to indicate title has been moved
+	my ($caller,$args) = @_;
+	my ($target,$statref,$xid,$t) = @$args;
+	$caller->set_sensitive(0); # grey button
+	my %exargs = (
+		chosen => Common::revGet($$statref,undef,Common::getStatIndex()),
+		panel => 1,
+		position => 'mouse',
+	);
+	my @keyord = Common::getStatOrder();
+	my %statuses = Common::getStatHash(($t eq 'series' ? "ani" : "man"));
+	$exargs{choices} = \%statuses;
+	$exargs{choiceorder} = \@keyord;
+	my $key = askBox(getGUI(mainWin),"^.^","Move to which status?",%exargs);
+	my %vals = Common::getStatIndex();
+	my $data = { ($t eq 'series' ? 'sid' : 'pid') => $xid };
+	if (defined $key and $key ne "") {
+		# TODO: if key == 4, ask if sure, and whether to set seen to max
+		$$data{status} = $vals{$key};
+		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash($data,$t,1);
+		if ($error) {
+			saybox(getGUI(mainWin),"Error #$error: $parms[0]");
+		} else {
+			# TODO: conservation option
+			my $dbh = PomalSQL::getDB();
+			my $success = PomalSQL::doQuery(2,$dbh,$cmd,@parms); # update SQL
+			if ($success == 1) {
+				if (config('UI','moveredraw')) { # if config option says to,
+					populateMainWin($dbh,getGUI(),1); # refresh pages
+				} else { # otherwise, change the label that is normally used for (rewatching) to indicate title has been moved
+					$target->set_text("(moved to $statuses{$key})");
+					$$statref = $vals{$key};
+				}
+			} else {
+				sayBox(getGUI(mainWin),"Could not update status in SQL: " . $dbh->errstr);
+			}
+		}
+	}
+	$caller->set_sensitive(1); # un-grey button
+	return 0; # end chooseStatus
 }
 print ".";
 
@@ -1001,16 +1055,9 @@ sub scoreSlider {
 	my $value = $caller->get_label();
 	my $keepbox = 1;
 	my $valueset = 0;
-	my $scorepop = Gtk2::Window->new();
-	$scorepop->set_default_size(20,20);
-	$scorepop->set_decorated(0);
-	$scorepop->set_gravity('south-east');
-	$scorepop->set_position('mouse');
-	$scorepop->present();
-#	$scorepop->set_position('mouse');
 	my $box = Gtk2::VBox->new();
 	$box->show();
-	$scorepop->add($box);
+	my $scorepop = mkPopup($box);
 	my $slide = Gtk2::HScale->new();
 	$slide->set_range(0,(config('UI','starscale') ? 5 : 10));
 	$slide->set_increments((config('UI','intscore') ? 1 : (config('UI','starscale') ? 0.5 : 0.1)),1); # display a volume control from 0.0 to 10.0
@@ -1111,23 +1158,40 @@ print ".";
 sub askBox {
 	my ($parent,$text,$label,%exargs) = @_;
 	unless (defined $parent) { $parent = getGUI(mainWin); }
-	my $askbox = Gtk2::Dialog->new((sprintf $text or "Input"),$parent,[qw/modal destroy-with-parent/],'gtk-cancel' => 'cancel', 'gtk-ok' => 'ok');
+	my $askbox = Gtk2::Dialog->new((sprintf $text or "Input"),$parent,[qw/modal destroy-with-parent/],'gtk-cancel' => 'cancel');
 	if ($exargs{panel}) { $askbox->set_decorated(0); } # no decoration
 	$askbox->set_position($exargs{position} or 'center-always');
 	my $vbox = $askbox->vbox;
-	my $row = Gtk2::HBox->new();
-	my $answer = $exargs{default} or "";
 	my $entry = Gtk2::Entry->new();
-	$entry->set_text($answer);
-	$entry->signal_connect("activate",sub { $askbox->response('ok'); });
-	$row->pack_start(Gtk2::Label->new($label),0,0,5);
-	$row->pack_start($entry,1,1,1);
-	$entry->grab_focus();
-	$vbox->pack_end($row,1,1,0);
+	unless ($exargs{choices}) {
+		$askbox->add_button('gtk-ok' => 'ok');
+		my $row = Gtk2::HBox->new();
+		my $answer = $exargs{default} or "";
+		$entry->set_text($answer);
+		$entry->signal_connect("activate",sub { $askbox->response('ok'); });
+		$row->pack_start($entry,1,1,1);
+		$row->pack_start(Gtk2::Label->new($label),0,0,5);
+		$entry->grab_focus();
+		$vbox->pack_end($row,1,1,0);
+	} else {
+		my %choices = %{ $exargs{choices} };
+		my @order = @{ $exarg{choiceorder} };
+		unless (scalar @order) { @order = sort keys %choices; };
+		$vbox->pack_start(Gtk2::Label->new($label),1,0,5);
+		foreach (@order) {
+			my $b = Gtk2::Button->new("$choices{$_}");
+			$b->show();
+			if ($_ eq $exargs{chosen}) {
+				$b->set_sensitive(0);
+			} else {
+				my $r = $_;
+				$b->signal_connect('clicked',sub { $entry->set_text("$r"); $askbox->response('ok'); });
+			}
+			$vbox->pack_start($b,0,0,1);
+		}
+	}
 	my ($width,$height) = $askbox->get_size();
-#	$askbox->move((Gtk2::Gdk->screen_width() / 2) - ($width / 2),(Gtk2::Gdk->screen_height() / 2) - ($height / 2));
 	$askbox->show_all();
-#	$askbox->move((Gtk2::Gdk->screen_width() / 2) - ($width / 2),(Gtk2::Gdk->screen_height() / 2) - ($height / 2));
 	if ('ok' eq $askbox->run()) {
 		$answer = $entry->get_text();
 		if ($exargs{nospace}) { $answer =~ s/' '/'-'/g; } # Spaces not allowed.
@@ -1137,6 +1201,20 @@ sub askBox {
 	}
 	$askbox->destroy();
 	return $answer;
+}
+print ".";
+
+sub mkPopup {
+	my ($widget) = @_;
+	my $pop = Gtk2::Window->new();
+	$pop->set_default_size(20,20);
+	$pop->set_decorated(0);
+	$pop->set_gravity('south-east');
+	$pop->set_position('mouse');
+	if (defined $widget) { $pop->add($widget); }
+	$pop->present();
+#	$pop->set_position('mouse');
+	return $pop;
 }
 print ".";
 
