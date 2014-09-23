@@ -20,7 +20,6 @@ sub importXML {
 		for ($filetoopen) {
 			if (/animelist/ or /mangalist/) { $res = Import::fromMALgz($filetoopen,$dbh,$gui); }
 		}
-		print "Result: $res\n";
 		if ($res == 0) {
 			$$gui{status}->push(0,"Import complete.");
 		} else {
@@ -54,6 +53,7 @@ sub fromMAL {
 		or return "Cannot read $fn!";
 	unless (defined $dbh) { return "No database connections supplied!"; }
 	$$gui{status}->push(0,"Attempting to import $fn to database...");
+	my $storecount = 0; my $upcount = 0;
 	my @list;
 	my $termcolor = config('Debug','termcolors') or 0;
 	use Common qw( getColorsbyName );
@@ -67,7 +67,7 @@ sub fromMAL {
 	# these two hashes determine the hash key under which each XML tag will be stored:
 	my %anitags = External::getTags('MALa');
 	my %mantags = External::getTags('MALm');
-	while ($loop == 1 and $i++ < 16) {
+	while ($loop == 1) {
 		if ($xml->nodeType() == 8) { print "\nComment in XML: " . $xml->value() . "\n"; $loop = $xml->next(); next; } # print comments and skip processing
 		if ($xml->nodeType() == 13 or $xml->nodeType() == 14 or $xml->name() eq "myanimelist") { $i--; $loop = $xml->read(); next; } # skip whitespace (and root node)
 		for ($xml->name()) {
@@ -90,13 +90,15 @@ sub fromMAL {
 				print "\n";
 			} elsif (/^anime$/) {
 				my $node = $xml->copyCurrentNode(1);
-				my $res = storeMAL($gui,$dbh,'series',$node,$termcolor,$anicol,\%info,%anitags);
+				my ($updated,$error) = storeMAL($gui,$dbh,'series',$node,$termcolor,$anicol,\%info,%anitags);
+				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
 				if ($returndata) { push(@list,$res); }
 				$loop = $xml->next();
 				print " ";
 			} elsif (/^manga$/) {
 				my $node = $xml->copyCurrentNode(1);
-				my $res = storeMAL($gui,$dbh,'pub',$node,$termcolor,$mancol,\%info,%mantags);
+				my ($updated,$error) = storeMAL($gui,$dbh,'pub',$node,$termcolor,$mancol,\%info,%mantags);
+				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
 				if ($returndata) { push(@list,$res); }
 				$loop = $xml->next();
 				print " ";
@@ -107,6 +109,8 @@ sub fromMAL {
 		$loop = $xml->read();
 	}
 	$|--;
+	$$gui{status}->push(0,"Successfully imported $storecount titles to database ($upcount updated)...");
+	PGUI::sayBox(PGUI::getGUI(mainWin),"Successfully imported $storecount titles to database ($upcount updated)...");
 	if ($returndata) { return @list; } else { return $loop; }
 }
 print ".";
@@ -115,7 +119,7 @@ sub storeMAL {
 	my ($gui,$dbh,$table,$node,$termcolor,$thiscol,$info,%tags) = @_;
 	my $basecol = ($termcolor ? Common::getColorsbyName("base") : "");
 	my %data;
-	print ++$$info{$tags{foundkey}} . "/$$info{$tags{totkey}} $marker";
+	print "\n" . ++$$info{$tags{foundkey}} . "/$$info{$tags{totkey}} " . ($table eq 'series' ? "A" : "M");
 	$$gui{status}->push(0,"Attempting to import $$info{$tags{foundkey}}/$$info{$tags{totkey}} anime to database...");
 	if ($termcolor) { print $thiscol; }
 	foreach (keys %tags) {
@@ -144,7 +148,6 @@ sub storeMAL {
 		my $safetable = $dbh->quote_identifier($table);
 		my $safeid = $dbh->quote_identifier($tags{idkey});
 		my $found = PomalSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $safetable WHERE $safeid=?",$data{$tags{idkey}}); # check to see if sid already present in DB
-		print "Found: $found ";
 		if($found) {
 			# config controls if user wants to update name and max episodes...
 			my $clobber = (config('Main','importdiffnames') or "never");
@@ -159,14 +162,12 @@ sub storeMAL {
 		}
 		$data{score} *= 10; # move from 10-point to 100-point scale
 		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash(\%data,$table,$found);
-		print "e: $error c: $cmd p: " . join(",",@parms) . "\n";
+		if (0) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
 		# Insert/update row
 		$error = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
 		# process tags and add them to the DB
-		#TODO
-#		$error = PomalSQL::addTags($dbh,substr($table,0,1),$data{$tags{idkey}},$data{$tags{tagkey}});
-		print " >$data{$tags{tagkey}}< ";
-		return;
+		$error = PomalSQL::addTags($dbh,substr($table,0,1),$data{$tags{idkey}},$data{$tags{tagkey}});
+		return $found,$error;
 	}
 }
 print ".";

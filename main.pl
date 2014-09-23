@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.920a";
+my $version = "0.1.922a";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -37,7 +37,6 @@ use Manga;
 
 # perhaps load these on-the-fly when they are needed?
 use External;
-use Import;
 use Export;
 
 use PGUI;
@@ -57,4 +56,3 @@ my $gui = PGUI::createMainWin($version);
 PGUI::populateMainWin($dbh,$gui);
 $| = 0; # return to buffered STDOUT
 Gtk2->main();
-print "Oops... not finished coding this. Exiting normally.\n";

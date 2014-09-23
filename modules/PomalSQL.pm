@@ -6,6 +6,8 @@ require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(getDB closeDB);
 
+sub config { return FIO::config(@_); }
+
 # DB wrappers that call SQL(ite) functions, depending on which the user has chosen to use for a backend.
 my $dbh;
 sub getDB {
@@ -15,7 +17,8 @@ sub getDB {
 	use DBI;
 	if ($dbtype eq "L") { # for people without access to a SQL server
 		$dbh = DBI->connect( "dbi:SQLite:pomal.dbl" ) || return undef,"Cannot connect: $DBI::errstr";
-		$dbh->do("SET NAMES 'utf8'");
+#		$dbh->do("SET NAMES 'utf8'");
+		print "SQLite DB connected.";
 	} elsif ($dbtype eq "M") {
 		my $host = shift || 'localhost';
 		my $base = shift || 'pomal';
@@ -113,7 +116,6 @@ sub makeTables { # used for first run
 		print ".";
 		if($error) { return undef,$error; }
 	}
-	my $st = qq(INSERT INTO series (sid,sname,lastwatched) VALUES(?,?,?););
 	return $dbh,"OK";
 }
 print ".";
@@ -124,6 +126,7 @@ sub doQuery {
 	my $realq;
 #	print "Received '$statement' ",join(',',@parms),"\n";
 	my $safeq = $dbh->prepare($statement);
+	if ($qtype == -1) { unless (defined $safeq) { return 0; } else { return 1; }} # prepare only
 	unless (defined $safeq) { warn "Statement could not be prepared! Aborting statement!\n"; return undef; }
 	if($qtype == 0){ # expect a scalar
 		$realq = $safeq->execute(@parms);
@@ -167,7 +170,7 @@ print ".";
 sub table_exists {
 	my ($dbh,$table) = @_;
 	my $st = qq(SHOW TABLES LIKE ?;);
-	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?;); }
+	if ('SQLite' eq $dbh->{Driver}->{Name}) { $st = qq(SELECT tid FROM $table LIMIT 0); return doQuery(-1,$dbh,$st); }
 	my $result = doQuery(0,$dbh,$st,$table);
 	return (length($result) == 0) ? 0 : 1;
 }
@@ -225,7 +228,8 @@ sub prepareFromHash {
 		print "$basecolor";
 		unless(@parms) { return 2,"ERROR","No parameters were matched with column names."; }
 		$cmd = substr($cmd,0,length($cmd)-2); # trim final ", "
-		$cmd = "$cmd WHERE $idcol=$vals{$idcol}";
+		$cmd = "$cmd WHERE $idcol=?";
+		push(@parms,$vals{$idcol});
 	}
 	return 0,$cmd,@parms; # Normal completion
 }
@@ -233,16 +237,48 @@ print ".";
 
 sub addTags {
 	my ($dbh,$key,$sid,@taglist) = @_;
-	warn "This is only a dream. addTags is not really parsing your input. Sorry.";
-	# see if taglist is a real array or just csv
-	# if csv, split it into a real array
-	# foreach tag
-		# if so configured, check tag against ambiguity table
-		# check to see if the tag exists in the tag table
-		# if it doesn't, add it
-		# assign its ID to a variable
-		# add a line in the tags table linking this tag with the series id in $sid and the key indicating the title type
-	# return happiness
+	my $error = -1;
+	unless (length "@taglist") { return 0; } # if no tags, no error
+	unless (scalar @taglist > 1) { # see if taglist is a real array or just csv
+		@taglist = split(/,/,"@taglist"); # if csv, split it into a real array
+	}
+	foreach my $t (@taglist) { # foreach tag
+		$t =~ s/^\s+//; # trim leading space
+		$t =~ s/\s+$//; # trim trailing space
+		if (config('ImEx','filterinput')) { $t = Common::disambig($t); } # if so configured, check tag against ambiguity table
+		my $st = "SELECT tid FROM tag WHERE text=?";
+		my $result = doQuery(0,$dbh,$st,$t); # check to see if the tag exists in the tag table
+		unless ($result =~ m/^[0-9]+$/) { # if it doesn't, add it
+#			print "Found tag: $result\n";
+			my $cmd = "INSERT INTO tag (text) VALUES (?)";
+			$result = doQuery(2,$dbh,$cmd,$t);
+			unless ($result == 1) { warn "Unexpected result: $result " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag parser: $result") : next ); }
+			$result = doQuery(0,$dbh,$st,$t);
+			if (not defined $result or $result eq "") { warn "Unexpected result ($result) after inserting tag: " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag tie: $result") : next ); }
+		}
+		my $id = $result; # assign its ID to a variable
+		$st = "SELECT tid FROM tags WHERE xid=? AND titletype=?";
+		my @parms = ($sid,$key);
+		$result = doQuery(4,$dbh,$st,@parms);
+		my $found = 0;
+		foreach (@$result) {
+			my @a = @$_;
+			if ($a[0] == $id) { $found = 1; }
+		}
+		unless ($found) {
+			my $cmd = "INSERT INTO tags (tid,xid,titletype) VALUES (?,?,?)"; # add a line in the tags table linking this tag with the series id in $sid and the key indicating the title type
+			unshift @parms, $id;
+			$result = doQuery(2,$dbh,$cmd,@parms);
+			# TODO: Error handling here
+			$error = ($result == 1 ? 0 : 1); # prepare return result
+			if (0) { print "Result of inserting tag '$t' ($id) for property $key:$sid is '$result'\n"; }
+		} else {
+			if (0) { print "Tag '$t' ($id) already associated with $key:$sid. Skipping.\n"; }
+			else { print "="; }
+			$error = 0;
+		}
+	}
+	return $error; # return happiness
 }
 print ".";
 

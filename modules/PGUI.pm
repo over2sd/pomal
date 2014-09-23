@@ -585,7 +585,6 @@ sub buildTitleRows {
 				$vebut->add($vbut);
 				# link the button to a dialog asking for a new value
 				my $upform = ($record{status} == 3 ? 5 : 4 );
-				print "Pub: $upform: ";
 				$vebut->signal_connect("button_press_event",\&askPortion,[$pvbox,$upform,$k,$updater]);
 				# put in a button to increment the number of volumes (using read or reread volumes)
 				unless ($record{status} == 4) {
@@ -649,6 +648,10 @@ sub callOptBox {
 		'01' => ['c',"Save window positions",'savepos'],
 ##		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
 ##		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
+		'04' => ['c',"Errors are fatal",'fatalerr'],
+
+		'05' => ['l',"Import/Export",'ImEx'],
+		'08' => ['c',"Use Disambiguation/Filter list",'filterinput'],
 		'06' => ['c',"Store tracking site credentials gleaned from imported XML",'gleanfromXML'],
 ##		'07' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
 
@@ -796,17 +799,10 @@ sub importGUI {
 	my ($caller) = @_;
 	my $dbh = PomalSQL::getDB();
 	my $gui = getGUI();
+	use Import;
 	my $error = Import::importXML($dbh,$gui);
-	print "Error: $error\n";
 	unless($error) {
-		$$gui{tabbar}->destroy();
-		$$gui{tabbar} = Gtk2::Notebook->new();
-		$$gui{tabbar}->show();
-		$$gui{vbox}->pack_start($$gui{tabbar},1,1,2);
-		if (defined config('UI','tabson')) { $view->set_tab_pos(config('UI','tabson')); } # set tab position based on config option
-		foreach (qw[ ani man ]) {
-			fillPage($dbh,$_,$gui);
-		}
+		populateMainWin($dbh,$gui,1);
 		$$gui{status}->push(0,"Ready.");
 	}
 }
@@ -907,18 +903,17 @@ sub updatePortion {
 			my $win = getGUI(mainWin);
 			dieWithErrorbox($win,"updatePortion was not passed a database handler!");
 		}
-		my @criteria = (
-			"series SET lastwatched",
-			"series SET lastrewatched",
-			"pub SET lastreadc",
-			"pub SET lastrereadc",
-			"pub SET lastreadv",
-			"pub SET lastrereadv",
-		);
-		my $st = "UPDATE $criteria[$uptype]=? WHERE " . ($uptype < 2 ? "sid" : "pid" ) . "=?";
-		if (0) { print $st," ",$value,"\n"; }
-		my $res = PomalSQL::doQuery(2,$dbh,$st,$value,$titleid); # update SQL table
-		unless ($res == 1) { sayBox(getGUI(mainWin),"Error: $res"); return 0; } # rudimentary error message for now...
+		my @criteria = ( "lastwatched", "lastrewatched", "lastreadc", "lastrereadc", "lastreadv", "lastrereadv" );
+		my $data = {};
+		$$data{$criteria[$uptype]} = $value;
+		$$data{($uptype < 2 ? "sid" : "pid" )} = $titleid;
+		my ($error,$st,@parms) = PomalSQL::prepareFromHash($data,($uptype < 2 ? "series" : "pub" ),1);
+		unless ($error) {
+			my $res = PomalSQL::doQuery(2,$dbh,$st,@parms); # update SQL table
+			unless ($res == 1) { sayBox(getGUI(mainWin),"Error: " . $dbh->errstr); return 0; } # rudimentary error message for now...
+		} else {
+			sayBox(getGUI(mainWin),"Error: $st"); return 0;
+		}
 	}
 	return $value;
 }
@@ -981,7 +976,7 @@ sub getPortions {
 		unless (defined $res) { return; } # no response: return
 		$value = @$res[($uptype % 2 ? 2 : 1 )];
 		$max = @$res[0];
-		if (1) { print "Count: ($value/$max)\n"; }
+		if (0) { print "Count: ($value/$max)\n"; }
 	}
 	return $value,$max;
 }

@@ -16,16 +16,16 @@ Roadmap
 
 v0.2:
 -----
-I can click and have an episode I've watched recorded.
-Finish coding import (specifically, tags handling) so that the limiter can be removed from the loop, allowing the loop to return the proper error code, which cascades to other functions
-Import should (using fillPage?) update the display when it finishes.
-Import should display a sayBox with the count of successfully imported/updated titles.
+Met 14/09/19: I can click and have an episode I've watched recorded.
 Met 14/09/20: createMainWin should generate the tables fillPage will use, so that menu items, etc., can fill/append to them.
+Met 14/09/22: Finish coding import (specifically, tags handling) so that the limiter can be removed from the loop, allowing the loop to return the proper error code, which cascades to other functions
+Met 14/09/22: Import should (using fillPage?) update the display when it finishes.
+Met 14/09/22: Import should display a sayBox with the count of successfully imported/updated titles.
+FIXED 14/09/22: SQLite can't recognize tables already exist, right now. That took an ugly hack.
+Met 14/09/22: Make sure all SQL update functions use prepareFromHash (for uniformity and easier debugging)
 When building title rows, put in button(s) for moving to another status
 Options dialog box
 Changing options immediately updates all tabs (link to confirmation button, not individual options)
-Make sure all SQL update functions use prepareFromHash (for uniformity and easier debugging)
-FIX: SQLite can't recognize tables already exist, right now.
 
 v0.3:
 -----
@@ -44,3 +44,4 @@ Main context should create (and pass down) global references for the rows that'l
 Manga storing of volumes (chapter column in volume table), and automatic update of chapter count when a volume is marked complete (chs/vols, if chapter count in volume == 0)
 tab refresh should check to see if there are existing objects (if conserving net traffic) and use those, if possible
 tab refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
+Import JSON objects (ImportHum)
