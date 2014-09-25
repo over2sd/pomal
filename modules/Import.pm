@@ -6,8 +6,7 @@
 package Import;
 print __PACKAGE__;
 
-use FIO;
-sub config { return FIO::config(@_); }
+use FIO qw( config );
 use External qw( getTags );
 print ".";
 

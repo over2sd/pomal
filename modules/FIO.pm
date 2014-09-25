@@ -1,8 +1,9 @@
 package FIO;
 
 use Config::IniFiles;
-use Exporter;
-@EXPORT = qw( config saveConf );
+require Exporter;
+@ISA = qw(Exporter);
+@EXPORT = qw( config saveConf loadConf );
 print __PACKAGE__;
 
 my $cfg = Config::IniFiles->new();

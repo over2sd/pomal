@@ -4,9 +4,7 @@ print __PACKAGE__;
 
 use Gtk2 -init; # requires GTK perl bindings
 
-use FIO;
-
-sub config { return FIO::config(@_); }
+use FIO qw( config );
 
 sub Gtkdie {
 	my $win = shift;
@@ -1149,6 +1147,43 @@ sub mkPopup {
 	$pop->present();
 #	$pop->set_position('mouse');
 	return $pop;
+}
+print ".";
+
+sub selColor {
+	my ($caller,$target,$title) = @_;
+	unless (defined $title) { $title = "Choose a color"; }
+	unless (ref($target) =~ m/Entry/) { warn "Bad target sent to selColor"; return; }
+	my $a = Gtk2::Gdk::Color->parse($target->get_text());
+	my $d = Gtk2::ColorSelectionDialog->new($title);
+	my $c = $d->colorsel;
+	$c->set_current_color($a);
+	$rsp = $d->run();
+	if ($rsp eq 'ok') {
+	$cas = $c->get_current_color()->to_string();
+	my @a = split(undef,$cas);
+	$b = uc sprintf("#%s%s%s%s%s%s",$a[1],$a[2],$a[5],$a[6],$a[9],$a[10]);
+	$target->set_text($b);
+	setBack(undef,[$target,'normal',$b]);
+	}
+  $d->destroy();
+  return;
+}
+print ".";
+
+sub setBack {
+	my ($caller,$args) = @_;
+	my ($target,$state,$color) = @$args;
+	unless (defined $color) {
+		if (ref($target) =~ m/Entry/) {
+			$color = $target->get_text();
+		}
+		unless (defined $color) {
+			$color = "#FFFFFF";
+		}
+	}
+	if (config("Debug","vlevel") > 1) { printf("%s called setBack with %s",$caller,$color); }
+	$target->modify_base($state,Gtk2::Gdk::Color->parse($color)); # change background
 }
 print ".";
 

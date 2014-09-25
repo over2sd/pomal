@@ -4,7 +4,7 @@ use strict;
 use warnings;
 print __PACKAGE__;
 
-sub config { use FIO; return FIO::config(@_); }
+use FIO qw( config );
 
 sub mkOptBox {
 	# need: guiset (for setting window marker, so if it exists, I can present the window instead of recreating it?)
@@ -46,7 +46,7 @@ sub mkOptBox {
 ##			'032' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
 			'034' => ['c',"Notebook with tab for each status",'statustabs'],
 ##			'036' => ['c',"Put movies on a separate tab",'moviesapart'],
-			'038' => ['s',"Notebook tab position: ",'tabson',0,"left","top","right","bottom"],
+			'038' => ['s',"Notebook tab position: ",'tabson',1,"left","top","right","bottom"],
 ##			'039' => ['c',"Show suggestions tab",'suggtab'],
 ##			'03a' => ['c',"Show recent activity tab",'recenttab'],
 ##			'03b' => ['c',"Recent tab active on startup",'activerecent'],
@@ -135,11 +135,12 @@ sub addModOpts {
 	my ($parent,$s,$change,$pos,$applyBut,$saveHash,@a) = @_;
 	unless (scalar @a > 2) { print "array @a length: ". scalar @a . "."; return; } # malformed option, obviously
 	my $item;
+	my $t = $a[0];
 	my $lab = $a[1];
-	my $col = $a[3] or "#FF0000";
-#	my @extra = ($#a > 3 ? $a[4..$#a] : ());
 	my $key = $a[2];
-	for ($a[0]) {
+	my $col = ($a[3] or "#FF0000");
+	splice @a, 0, 4; # leave 4-n in array
+	for ($t) {
 		if (/c/) {
 			my $cb = Gtk2::CheckButton->new($lab);
 			$cb->set_active(config($s,$key) or 0);
@@ -150,9 +151,16 @@ sub addModOpts {
 		}elsif (/m/) {
 warn "Mask page $key will not be produced because the code is not finished";
 		}elsif (/r/) {
+			my $col = (config($s,$key) or $col);
 warn "Radio button group $key will not be produced because the code is not finished";
+#			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
 		}elsif (/s/) {
+			my $val = (config($s,$key) or "");
+			foreach my $i (0..$#a) { # find the value among the options
+				if ($a[$i] eq $val) { $col = $i; }
+			}
 warn "Selection box $key will not be built because the code is not finished";
+#			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
 		}elsif (/t/) {
 			my $row = Gtk2::HBox->new();
 			$row->show();
@@ -167,7 +175,7 @@ warn "Selection box $key will not be built because the code is not finished";
 			$row->pack_start($l,0,0,0);
 			$row->pack_start($e,1,1,0);
 		}elsif (/x/) {
-warn "Color (hex) row $key will not be built because the code is not finished";
+			buildColorRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos);
 		} else {
 			warn "Ignoring bad option $a[0].\n";
 			return;
@@ -192,7 +200,7 @@ sub optChange {
 		} elsif (/Entry/) {
 			$value = $caller->get_text();
 		} else {
-			print "Fail! ";
+			print "Fail! '$_' ($default) unhandled";
 		}
 #				$value = $caller->get_text();
 #				$value = $caller->get_active_text();
@@ -227,6 +235,76 @@ sub saveFromOpt {
 	FIO::saveConf();
 	$status->push(0,"Options applied.");
 	$$flagref = 0;	
+}
+print ".";
+
+sub buildColorRow {
+	my ($box,$options,$applyBut,$lab,$s,$key,$col,$change,$pos) = @_;
+	my $row = Gtk2::HBox->new();
+	my $label = Gtk2::Label->new($lab);
+	$label->set_alignment(0.1,0.5);
+	my $e = Gtk2::Entry->new();
+	$e->show();
+	$e->set_text(config($s,$key) or $col);
+	$e->set_width_chars(24);
+	$e->signal_connect("changed",\&optChange,[$change,$pos,$options,$s,$key,$applyBut,(config($s,$key) or "")]);
+	$e->signal_connect("changed",\&PGUI::setBack,[$e,"normal"]);
+	PGUI::setBack(undef,[$e,'normal']);
+#	$e->signal_connect("focus-in-event",scrollOnTab,scroll)
+	my $b = Gtk2::Button->new("Choose Color");
+	$b->signal_connect("clicked",\&PGUI::selColor,$e);
+	$b->show();
+	$row->show();
+	$label->show();
+	$row->pack_start($label,1,1,2);
+	$row->pack_start($e,0,0,2);
+	$row->pack_start($b,0,0,2);
+	$box->pack_start($row,0,0,1);
+}
+print ".";
+
+sub buildComboRow {
+	my ($box,$options,$applyBut,$lab,$s,$key,$d,$changes,$pos,$optyp,@presets) = @_;
+	if ($d =~ m/^#/) { $d = 0; } # if passed a hex code
+	my $row = Gtk2::HBox->new();
+	$row->show();
+	my $label = Gtk2::Label->new($lab);
+	$label->set_alignment(0.1,0.5);
+	$label->show();
+	$row->pack_start($label,0,0,2);
+	if ($optyp eq 's') {
+		$d = int($d); # cast as a number
+		my $c = Gtk2::ComboBox->new_text();
+		my $selected = -1;
+		my $i = 0;
+		foreach my $f (@presets) {
+			if ($i == $d) { $selected = $i; }
+			$c->append_text($f);
+			$i++;
+		}
+		$c->set_active($selected);
+		$c->signal_connect("changed",\&optChange,[$changes,$pos,$options,$s,$key,$applyBut,config($s,$key)]);
+		$c->signal_connect("move-active",\&optChange,[$changes,$pos,$options,$s,$key,$applyBut,config($s,$key)]);
+		$c->show();
+		$row->pack_start($c,0,0,2);
+		my $blank = Gtk2::Label->new(" ");
+		$blank->show(); # spacer to make combo box sit next to its label
+		$row->pack_end($blank,1,0,0);
+	} elsif ($optyp eq 'r') {
+		my %options = @presets; # become hash
+		my $g;
+		foreach my $i (keys %options) {
+			my $a = Gtk2::RadioButton->new($g,$options{$i});
+			$a->show();
+			if ($i eq $d) { $a->set_active(1); }
+			$row->pack_start($a,1,0,1);
+			$g = $a;
+		}
+		$g->signal_connect('group-changed',\&optChange,[undef,$changes,$pos,$options,$s,$key,$applyBut,config($s,$key)]);
+	} else {
+		warn "Incompatible selection type ($optyp)";
+	}
+	$box->pack_start($row,0,0,1);
 }
 print ".";
 

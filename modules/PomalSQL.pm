@@ -6,7 +6,7 @@ require Exporter;
 @ISA = qw(Exporter);
 @EXPORT = qw(getDB closeDB);
 
-sub config { return FIO::config(@_); }
+use FIO qw( config );
 
 # DB wrappers that call SQL(ite) functions, depending on which the user has chosen to use for a backend.
 my $dbh;
