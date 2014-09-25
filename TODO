@@ -1,16 +1,17 @@
 ### Guidance ###
 
-Stuff that is trivial to implement:
-
 Stuff that can wait:
 metadata functions
 Next episode suggestion - looks at your DB and suggests three shows to watch next, weighting Watching shows by percentage progress, completed shows by rewatch value and # of times rewatched (tails better than bell), and other shows by length?
+Content mapping for series, possibly episodes
+Options: content the user cares about (don't ding e.g. violence, if user isn't bothered by it)
 Install script that checks for and pulls unsatisfied Perl dependencies?
 The project still needs Anime and Manga objects. They will be useful for an option to preserve network traffic rather than memory footprint.
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
 Recent activity timeline with buttons for five most recent shows, plus list of activity within the past n days.
 Storage of additional title information
 Start rewatching show button (use undo icon to save button space?)
+Display/edit of tags for episode/chapter?
 
 Roadmap
 =======
@@ -33,6 +34,7 @@ v0.3:
 -----
 Option: display last episode watched, or next episode to watch?
 Episode voting
+Display/edit of tags for series/pub
 
 v1.0:
 -----
@@ -48,3 +50,13 @@ tab refresh should check to see if there are existing objects (if conserving net
 tab refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
 Import JSON objects (ImportHum)
 Pretty up the display tables
+Export of database to XML
+Export of database to SQL dump document
+Import of content marker files (from other users, who may not have the same numbering?)
+Manual entry of titles
+
+v2.0:
+-----
+plugin registry
+option registry
+plugins that can add new columns to the display tables

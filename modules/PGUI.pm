@@ -137,7 +137,8 @@ sub buildMenus {
 #		File > Synchronize
 ##		my $itemFO = itemize("Synchr_onize",$f);
 #		File > Preferences
-##		my $itemFP = itemize("_Preferences",$f);
+		my $itemFP = itemize("_Preferences",$f);
+		$itemFP->signal_connect("activate",\&callOptBox);
 #		File > Quit
 		my $itemFQ = itemize("_Quit",$f);
 #		accelerate($itemFQ,"<Control>Q",$ag);
@@ -659,74 +660,7 @@ sub buildTitleRows {
 print ".";
 
 sub callOptBox {
-	# need: parent window, guiset (for setting window marker, so if it exists, I can present the window instead of recreating it?)
-	# First hash key (when sorted) MUST be a label containing a key that corresponds to the INI Section for the options that follow it!
-	# EACH Section needs a label conaining the Section name in the INI file where it resides.
-	my %opts = (
-		'00' => ['l',"General",'Main'],
-		'01' => ['c',"Save window positions",'savepos'],
-##		'02' => ['x',"Foreground color: ",'fgcol',"#00000"],
-##		'03' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
-		'04' => ['c',"Errors are fatal",'fatalerr'],
-
-		'05' => ['l',"Import/Export",'ImEx'],
-		'08' => ['c',"Use Disambiguation/Filter list",'filterinput'],
-		'06' => ['c',"Store tracking site credentials gleaned from imported XML",'gleanfromXML'],
-##		'07' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
-
-		'10' => ['l',"Database",'DB'],
-		'11' => ['r',"Database type:",'type',0,'M','MySQL','L','SQLite'],
-		'12' => ['t',"Server address:",'host'],
-		'13' => ['t',"Login name (if required):",'user'],
-		'14' => ['c',"Server requires password",'password'],
-##		'20' => ['c',"Update episode record with date on first change of episode"],
-##		'19' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
-##		'15' => ['c',"Maintain extended information table",'exinfo'],
-
-		'30' => ['l',"User Interface",'UI'],
-##		'32' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],
-		'34' => ['c',"Notebook with tab for each status",'statustabs'],
-##		'36' => ['c',"Put movies on a separate tab",'moviesapart'],
-		'38' => ['s',"Notebook tab position: ",'tabson',0,"left","top","right","bottom"],
-##		'39' => ['c',"Show suggestions tab",'suggtab'],
-##		'40' => ['c',"Show recent activity tab",'recenttab'],
-##		'41' => ['c',"Recent tab active on startup",'activerecent'],
-		'42' => ['c',"Show progress bar for each title's progress",'graphicprogress'],
-		'43' => ['x',"Header background color code: ",'headerbg',"#CCCCFF"],
-		'44' => ['c',"5-star scoring",'starscore'],
-		'45' => ['c',"Limit scores to discrete points",'intscore'],
-		'46' => ['c',"Show count in section tables",'linenos'],
-		'47' => ['c',"Refresh pages when title is moved",'moveredraw'],
-##		'48' => ['c',"Move to active when changing parts seen",'incmove'],
-
-		'50' => ['l',"Fonts",'Font'],
-		'51' => ['t',"Tab font/size: ",'label'],
-		'52' => ['t',"General font/size: ",'body'],
-		'59' => ['t',"Special font/size: ",'special'], # for lack of a better term
-		'53' => ['t',"Progress font/size: ",'progress'],
-
-		'70' => ['l',"Custom Text",'Custom'],
-		'72' => ['t',"Anime:",'ani'],
-		'73' => ['t',"Manga:",'man'],
-		'71' => ['t',"POMAL:",'program'],
-##		'74' => ['t',"Movies:",'mov'],
-##		'75' => ['t',"Stand-alone Manga:",'sam'],
-
-		'90' => ['l',"Debug Options",'Debug'],
-		'91' => ['c',"Colored terminal output",'termcolors']
-    );
-	# Make a window
-	# make a tabbed notebook
-	# for each section, make a notebook page
-	# should notebook page be a scrolled window, in case there are many options in the Section?
-	# make a vbox to put all the options in a given Section in
-	# make a Close button
-	# make a Save button (calls saveConf())
-#		$item = Options::addModOpts(scroll,@o);
-	# put item in vbox
-
-	# When done with %opts...
-	# add content filter options to notebook
+	Options::mkOptBox(getGUI());
 }
 print ".";
 
