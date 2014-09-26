@@ -12,6 +12,7 @@ sub Gtkdie {
 	my $text = shift;
 	my $text = ( defined $text ? ": $text" : "" );
 	print "Exit$text\n";
+	PomalSQL::closeDB();
 	Gtk2->main_quit;
 	exit(shift or 0);
 }
@@ -88,6 +89,8 @@ sub createMainWin {
 		$window->set_default_size($w,$h);
 		$window->move((config('Main','left') or 40),(config('Main','top') or 30));
 	}
+# This line does nothing apparent:
+#	if (defined config('Font','body')) { applyFont($window,0); }
 	my $vbox = Gtk2::VBox->new();
 	$window->add($vbox);
 	my $ag = Gtk2::AccelGroup->new(); # create the hotkey group
@@ -144,7 +147,8 @@ sub buildMenus {
 #		Help >
 		my ($itemH,$h) = itemize("_Help",$menus,$ag);
 #		Help > About
-##		my $itemHA = itemize("_About",$h);
+		my $itemHA = itemize("_About",$h);
+		$itemHA->signal_connect("activate",\&aboutBox,$mainwin);
 
 	}
 	return $menus;
@@ -181,7 +185,7 @@ print ".";
 
 sub storeWindowExit {
 	my ($caller,$window) = @_;
-	print "Called by $caller, I am ";
+#	print "Called by $caller, I am ";
 	my $s = 'Main';
 	if (config($s,'savepos')) {
 		print "Storing window position. ";
@@ -193,7 +197,7 @@ sub storeWindowExit {
 		config($s,'left',$x);
 		FIO::saveConf();
 	} else {
-		print "Not storing window position. ";
+#		print "Not storing window position. ";
 	}
 	Gtkdie(undef,"normally");
 }
@@ -355,7 +359,7 @@ sub loadDBwithSplashDetail {
 	unless (defined $dbh) { # error handling
 		sayBox($splash,$error);
 		$splash->destroy();
-		print "Exiting.\n";
+		print "Exiting (no DB).\n";
 		exit(-2);
 	}
 	unless (PomalSQL::table_exists($dbh,'tags')) {
@@ -479,6 +483,9 @@ sub buildTitleRows {
 	my $needrows = scalar @keys * (config('UI','rulesep') ? 2 : 1) + $rownum;
 	my ($w,$h) = $target->get_size();
 	if ($h < $needrows) { $target->resize($w,$needrows); }
+	my $bodyfont = 0;
+	if (defined config('Font','body')) { $bodyfont = 1; }
+#	if ($bodyfont) { applyFont($target,0); }
 	foreach my $k (@keys) { # loop over list
 		$rownum++; $rowshown++;
 #		print "Building row for title $k...\n";
@@ -491,6 +498,7 @@ sub buildTitleRows {
 		if ($titletype eq 'head') {
 			if (config('UI','linenos')) {
 				my $nolabel = Gtk2::Label->new("#");
+				if ($bodyfont) { applyFont($nolabel,0); }
 				my $cb = Gtk2::EventBox->new();
 				$cb->add($nolabel);
 				$cb->show();
@@ -500,6 +508,7 @@ sub buildTitleRows {
 			$rownum--; 
 		} else {
 			my $nolabel = Gtk2::Label->new((config('UI','linenos') ? "$rowshown" : ""));
+			if ($bodyfont) { applyFont($nolabel,0); }
 			$target->attach($nolabel,0,1,$rownum,$rownum+1,qw( fill ),qw( fill ),7,0);
 		}
 		my $title = Gtk2::Label->new($record{title}); # put in the title of the series
@@ -507,6 +516,7 @@ sub buildTitleRows {
 		$title->set_alignment(0.0,0.1);
 		$title->set_width_chars(35);
 		$title->set_line_wrap(1);
+		if ($bodyfont) { applyFont($title,0); }
 		if ($titletype eq 'head') {
 			my $cb = Gtk2::EventBox->new();
 			$cb->add($title);
@@ -527,6 +537,7 @@ sub buildTitleRows {
 		} else {
 			my $rew = Gtk2::Label->new(($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "")); # put in the rewatching status
 			$rew->show();
+			if ($bodyfont) { applyFont($rew,0); }
 			$rbox->pack_start($rew,1,1,1);
 			unless ($record{status} == 4) { # No move button for completed page
 				my $rbut = Gtk2::Button->new("m");
@@ -540,6 +551,7 @@ sub buildTitleRows {
 		if ($titletype eq 'head') {
 			my $plabel = Gtk2::Label->new("Progress");
 			$plabel->show();
+			if ($bodyfont) { applyFont($plabel,0); }
 			my $cb = Gtk2::EventBox->new();
 			$cb->add($plabel);
 			$cb->show();
@@ -617,6 +629,7 @@ sub buildTitleRows {
 		if ($titletype eq 'head') {
 			my $tags = Gtk2::Label->new("Tags");
 			$tags->show();
+			if ($bodyfont) { applyFont($tags,0); }
 			my $cb = Gtk2::EventBox->new();
 			$cb->add($tags);
 			$cb->show();
@@ -631,6 +644,7 @@ sub buildTitleRows {
 		if ($titletype eq 'head') {
 			my $score = Gtk2::Label->new($record{score});
 			$score->show();
+			if ($bodyfont) { applyFont($score,0); }
 			my $cb = Gtk2::EventBox->new();
 			$cb->add($score);
 			$cb->show();
@@ -1047,7 +1061,6 @@ sub unpackProgBox {
 		my $countwidget,$percwidget,$pluswidget;
 		my @kids = $pbox->get_children();
 		if (scalar @kids == 3) { # manga progress?
-			print "3 found...";
 			my $index = ($getvols ? 1 : 0);
 			my @gkids = $kids[$index]->get_children();
 			unless (defined $gkids[0] and ref($gkids[0]) eq "Gtk2::EventBox") {
@@ -1128,7 +1141,7 @@ sub askBox {
 		$answer = $entry->get_text();
 		if ($exargs{nospace}) { $answer =~ s/' '/'-'/g; } # Spaces not allowed.
 	} else {
-		print "Cancelled";
+#		print "Cancelled";
 		$answer = undef;
 	}
 	$askbox->destroy();
@@ -1184,6 +1197,11 @@ sub setBack {
 	}
 	if (config("Debug","vlevel") > 1) { printf("%s called setBack with %s",$caller,$color); }
 	$target->modify_base($state,Gtk2::Gdk::Color->parse($color)); # change background
+}
+print ".";
+
+sub aboutBox {
+	sayBox(@_[1],"Welcome to POMAL, an offline anime/manga tracking program.\nI hope you enjoy this program.\nEverything should be self-explanatory, but if I get feedback otherwise, I'll put some time into making a tutorial and a more informative About box.\n--over2SD");
 }
 print ".";
 

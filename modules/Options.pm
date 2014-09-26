@@ -59,10 +59,10 @@ sub mkOptBox {
 ##			'042' => ['c',"Move to active when changing parts seen",'incmove'],
 
 			'050' => ['l',"Fonts",'Font'],
-			'051' => ['t',"Tab font/size: ",'label'],
-			'052' => ['t',"General font/size: ",'body'],
-			'059' => ['t',"Special font/size: ",'special'], # for lack of a better term
-			'053' => ['t',"Progress font/size: ",'progress'],
+			'054' => ['f',"Tab font/size: ",'label'],
+			'051' => ['f',"General font/size: ",'body'],
+			'053' => ['f',"Special font/size: ",'special'], # for lack of a better term
+			'052' => ['f',"Progress font/size: ",'progress'],
 
 			'070' => ['l',"Custom Text",'Custom'],
 			'072' => ['t',"Anime:",'ani'],
@@ -70,6 +70,7 @@ sub mkOptBox {
 			'071' => ['t',"POMAL:",'program'],
 ##			'074' => ['t',"Movies:",'mov'],
 ##			'075' => ['t',"Stand-alone Manga:",'sam'],
+			'076' => ['t',"Options dialog",'options'],
 
 			'ff0' => ['l',"Debug Options",'Debug'],
 			'ff1' => ['c',"Colored terminal output",'termcolors']
@@ -81,6 +82,7 @@ sub mkOptBox {
 		$vb->show();
 		$optbox->add($vb);
 		$optbox->set_position('center-always');
+		$optbox->set_title((config('Custom','options') or "Preferences"));
 		my $pages = Gtk2::Notebook->new(); # make a tabbed notebook
 		$pages->show();
 		$pages->set_tab_pos("left");
@@ -148,19 +150,29 @@ sub addModOpts {
 #			$cb->signal_connect("focus-in-event",scrollOnTab,scroll)
 			$cb->show();
 			$parent->pack_start($cb,0,0,1);
+		}elsif (/f/) {
+			my $row = Gtk2::HBox->new();
+			$row->show();
+			$parent->pack_start($row,0,0,1);
+			my $l = Gtk2::Label->new($lab);
+			$l->show();
+			my $f = Gtk2::FontButton->new_with_font(config($s,$key) or "");
+			$f->signal_connect("font-set",\&optChange,[$change,$pos,$saveHash,$s,$key,$applyBut,(config($s,$key) or "")]);
+#			$f->signal_connect("focus-in-event",scrollOnTab,scroll)
+			$f->show();
+			$row->pack_start($l,1,0,0);
+			$row->pack_start($f,1,1,0);
 		}elsif (/m/) {
 warn "Mask page $key will not be produced because the code is not finished";
 		}elsif (/r/) {
 			my $col = (config($s,$key) or $col);
-warn "Radio button group $key will not be produced because the code is not finished";
-#			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
+			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
 		}elsif (/s/) {
 			my $val = (config($s,$key) or "");
 			foreach my $i (0..$#a) { # find the value among the options
 				if ($a[$i] eq $val) { $col = $i; }
 			}
-warn "Selection box $key will not be built because the code is not finished";
-#			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
+			buildComboRow($parent,$saveHash,$applyBut,$lab,$s,$key,$col,$change,$pos,$_,@a);
 		}elsif (/t/) {
 			my $row = Gtk2::HBox->new();
 			$row->show();
@@ -169,7 +181,7 @@ warn "Selection box $key will not be built because the code is not finished";
 			$l->show();
 			my $e = Gtk2::Entry->new();
 			$e->set_text(config($s,$key) or "");
-			$e->signal_connect("changed",\&optChange,[$change,$pos,$saveHash,$s,$key,$applyBut,(config($s,$key) or "")]);
+			$e->signal_connect("focus-out-event",\&optChange,[$change,$pos,$saveHash,$s,$key,$applyBut,(config($s,$key) or "")]);
 #			$e->signal_connect("focus-in-event",scrollOnTab,scroll)
 			$e->show();
 			$row->pack_start($l,0,0,0);
@@ -191,24 +203,33 @@ sub mayApply {
 print ".";
 
 sub optChange {
-	my ($caller,$args) = @_;
-	my ($maskref,$p,$href,$sec,$k,$aButton,$default) = @$args;
+	my ($caller,$args,$altargs) = @_;
+	unless ($args =~ m/ARRAY/) { $args = $altargs; } # combobox sends an extraneous event argument before the user args
+	my ($maskref,$p,$href,$sec,$k,$aButton,$default,$rbval) = @$args;
+#	print "my (\$maskref,\$p,\$href,\$sec,\$k,\$aButton,\$default,\$rbval)\n";
+#	printf("my (%s,%s,%s,%s,%s,%s,%s,%s)\n",$maskref,$p,$href,$sec,$k,$aButton,$default,$rbval);
 	my $value;
 	for (ref($caller)) {
 		if (/CheckButton/) {
 			$value = $caller->get_active() or 0;
 		} elsif (/Entry/) {
 			$value = $caller->get_text();
+		} elsif (/ComboBox/) {
+			$value = $caller->get_active_text();
+		} elsif (/FontButton/) {
+			$value = $caller->get_font_name();
+		} elsif (/RadioButton/) {
+			($caller->get_active() ? $value = $rbval : return );
 		} else {
-			print "Fail! '$_' ($default) unhandled";
+			warn "Fail! '$_' (" . (defined $default ? $default : "undef") . ") unhandled";
 		}
-#				$value = $caller->get_text();
-#				$value = $caller->get_active_text();
 #				$value = $caller->get_value_as_int();
 #				$value = $caller->get_value_as_int() * 100;
+#		print "$_: $value\n";
 	}
 	unless (defined $default) {
 		$$maskref = Common::setBit($p,$$maskref);  $$href{$sec}{$k} = $value or 0;
+		mayApply($aButton,$maskref);
 	} else {
 		unless ($value eq $default) {
 			$$maskref = Common::setBit($p,$$maskref); $$href{$sec}{$k} = $value or 0;
@@ -225,16 +246,18 @@ sub saveFromOpt {
 	my ($flagref,$href) = @$args;
 	$caller->set_sensitive(0);
 	foreach my $s (keys %$href) {
-		print "Section $s:\n";
+#		print "Section $s:\n";
 		foreach (keys %{ $$href{$s} }) {
-			print "	Key $_: $$href{$s}{$_}\n";
+#			print "	Key $_: $$href{$s}{$_}\n";
 			config($s,$_,($$href{$s}{$_} or 0));
 		}
 	}
 	my $status = PGUI::getGUI("status");
 	FIO::saveConf();
 	$status->push(0,"Options applied.");
-	$$flagref = 0;	
+	$$flagref = 0;
+	# check here to see if something potentially crash-inducing has been changed, and shut down cleanly, instead, after informing user that a restart is required.
+	PGUI::populateMainWin(PomalSQL::getDB(),PGUI::getGUI(),1); # refresh the UI
 }
 print ".";
 
@@ -292,15 +315,15 @@ sub buildComboRow {
 		$row->pack_end($blank,1,0,0);
 	} elsif ($optyp eq 'r') {
 		my %options = @presets; # become hash
-		my $g;
-		foreach my $i (keys %options) {
-			my $a = Gtk2::RadioButton->new($g,$options{$i});
+		my @g;
+		foreach my $i (sort keys %options) {
+			my $a = Gtk2::RadioButton->new($g[0],$options{$i});
 			$a->show();
 			if ($i eq $d) { $a->set_active(1); }
 			$row->pack_start($a,1,0,1);
-			$g = $a;
+			$a->signal_connect('toggled',\&optChange,[$changes,$pos,$options,$s,$key,$applyBut,$d,$i]);
+			push(@g,$a);
 		}
-		$g->signal_connect('group-changed',\&optChange,[undef,$changes,$pos,$options,$s,$key,$applyBut,config($s,$key)]);
 	} else {
 		warn "Incompatible selection type ($optyp)";
 	}

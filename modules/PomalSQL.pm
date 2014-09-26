@@ -13,6 +13,7 @@ my $dbh;
 sub getDB {
 	if (defined $dbh) { return $dbh; }
 	my ($dbtype) = shift;
+	if ($dbtype eq "0") { return undef; } # flag for not creating DB if not available
 	unless (defined $dbtype) { $dbtype = FIO::config('DB','type'); } # try to save
 	use DBI;
 	if ($dbtype eq "L") { # for people without access to a SQL server
@@ -42,8 +43,8 @@ sub getDB {
 print ".";
 
 sub closeDB {
-	my $dbh = shift;
-	$dbh->disconnect;
+	my $dbh = shift or getDB(0);
+	if (defined $dbh) { $dbh->disconnect; }
 	print "Database closed.";
 }
 print ".";
@@ -148,7 +149,7 @@ sub doQuery {
 		}
 	} elsif ($qtype == 3){
 		unless (@parms) {
-			print "Required field not supplied for doQuery(3). Give field name to act as hash keys in final parameter.\n";
+			warn "Required field not supplied for doQuery(3). Give field name to act as hash keys in final parameter.\n";
 			return ();
 		}
 		my $key = pop(@parms);
@@ -161,7 +162,7 @@ sub doQuery {
 		$safeq->execute(@parms);
 		$realq = $safeq->fetchrow_arrayref();
 	} else {
-		print "Invalid query type";
+		warn "Invalid query type";
 	}
 	return $realq;
 }

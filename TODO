@@ -1,10 +1,11 @@
 ### Guidance ###
 
-Stuff that can wait:
+For unknown version point:
 metadata functions
 Next episode suggestion - looks at your DB and suggests three shows to watch next, weighting Watching shows by percentage progress, completed shows by rewatch value and # of times rewatched (tails better than bell), and other shows by length?
 Content mapping for series, possibly episodes
 Options: content the user cares about (don't ding e.g. violence, if user isn't bothered by it)
+Options: mask row type
 Install script that checks for and pulls unsatisfied Perl dependencies?
 The project still needs Anime and Manga objects. They will be useful for an option to preserve network traffic rather than memory footprint.
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
@@ -17,24 +18,12 @@ Roadmap
 =======
 (release criteria)
 
-v0.2:
------
-Met 14/09/19: I can click and have an episode I've watched recorded.
-Met 14/09/20: createMainWin should generate the tables fillPage will use, so that menu items, etc., can fill/append to them.
-Met 14/09/22: Finish coding import (specifically, tags handling) so that the limiter can be removed from the loop, allowing the loop to return the proper error code, which cascades to other functions
-Met 14/09/22: Import should (using fillPage?) update the display when it finishes.
-Met 14/09/22: Import should display a sayBox with the count of successfully imported/updated titles.
-FIXED 14/09/22: SQLite can't recognize tables already exist, right now. That took an ugly hack.
-Met 14/09/22: Make sure all SQL update functions use prepareFromHash (for uniformity and easier debugging)
-Met 14/09/23: When building title rows, put in button(s) for moving to another status
-Options dialog box
-Changing options immediately updates all tabs (link to confirmation button, not individual options)
-
 v0.3:
 -----
 Option: display last episode watched, or next episode to watch?
 Episode voting
 Display/edit of tags for series/pub
+Options: If a radiobutton option has more than two options, generate a VBox instead of an HBox
 
 v1.0:
 -----
