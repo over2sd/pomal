@@ -13,7 +13,18 @@ However, this software does not require an account with any online tracking serv
 
 -------
 
+To run this program under Windows, you will need to install:
+perl (e.g., Strawberry Perl)
+Prima (cpan Prima under Strawberry Perl)
+
+cpan modules:
+
 History of Release Criteria and Changes
+
+Version reset to v0.01-prealpha: Sep 29, 2014
+Owing to a difficulty in getting GTK perl libraries to install properly on my Windows test machine, I have decided to change the underlying GUI library to something I can get working there.
+Consequently, I have decided to reset the version number, since I will be essentially starting over with the GUI code.
+No further functionality will be added to the project until the existing GUI functions have been re-written. Thank you for your patience.
 
 v0.2: Released Sep 25, 2014
 -----
