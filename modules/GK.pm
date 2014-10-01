@@ -11,6 +11,70 @@ package ColorRow; #Replaces Gtk2::ColorSelectionDialog
 #);
 #$colRow->build("Header Color: ",{ color => "#BBEEFF" },{ text => "Paint", });
 
+use parent -norequire, 'HBox';
+
+sub build {
+	my ($self,$ltxt,$exargs,$butargs) = @_;
+	$self->pack( fill => 'x', expand => 0, side => "top", );
+	if (defined $ltxt) {
+		$self->insert( Label =>
+			text => $ltxt,
+			pack => { fill => "none", expand => 0, },
+			);
+	}
+	# TODO: maybe - Have an option to have color setting done on a separate box so it doesn't interfere with text visibility?
+	my $lab = Prima::InputLine->new(
+		owner => $self,
+		text => $exargs->{color},
+		backColor => stringToColor($exargs->{color}),
+		onChange => \&matchColor,
+		pack => { fill => 'x', expand => 1, padx => 3, side => "top", },
+	);
+	matchColor($lab);
+	$self->insert(Button =>
+		text => "Choose",
+		onClick => sub {
+			my $p = Prima::ColorDialog-> create( quality => 1, );
+			$p->value(stringToColor($lab->text()));
+			my $ok = $p->execute();
+			if ($ok == 1) {
+				$lab->text(sprintf "#%06x", $p-> value());
+				ColorRow::matchColor($lab);
+			}
+		},
+		%$butargs,
+		pack => { fill => 'none', expand => 0, },
+		);
+	$self->arrange();
+	return $lab; # for signal connection, value pulling, etc.
+}
+
+sub matchColor {
+	my $self = shift;
+	$self->backColor(stringToColor($self->text()));
+# this comparison is very rudimentary and faulty. TODO: apply the luminosity test from DAOS to this
+	if ($self->backColor < stringToColor("808080")) {
+		$self->color(cl::White);
+	} else {
+		$self->color(cl::Black);
+	}
+	
+}
+
+sub stringToColor {
+	my $string = shift;
+	$string =~ s/^#//;
+	return 0 unless (length($string) >= 3);
+	if ($string =~ m/[\dA-Fa-f]{6}/) {
+		return hex $string;
+	} elsif ($string =~ m/[\dA-Fa-f]{3}/) {
+		my @s = split('',$string);
+		$string = $s[0] . $s[0] . $s[1] . $s[1] . $s[2] . $s[2];
+		return hex $string;
+	}
+	return 0;
+}
+
 package FontRow; #Replaces Gtk2::FontButton
 # EXAMPLE:
 #my $fontR = FontRow->new(
