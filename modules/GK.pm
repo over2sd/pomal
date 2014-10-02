@@ -22,43 +22,37 @@ sub build {
 			pack => { fill => "none", expand => 0, },
 			);
 	}
-	# TODO: maybe - Have an option to have color setting done on a separate box so it doesn't interfere with text visibility?
 	my $lab = Prima::InputLine->new(
 		owner => $self,
 		text => $exargs->{color},
-		backColor => stringToColor($exargs->{color}),
-		onChange => \&matchColor,
-		pack => { fill => 'x', expand => 1, padx => 3, side => "top", },
+		pack => { fill => 'x', expand => 1, padx => 3, side => "left", },
 	);
-	matchColor($lab);
-	$self->insert(Button =>
-		text => "Choose",
-		onClick => sub {
+	my $swatch = Prima::Button->new(
+		owner => $self,
+		text => "",
+		readOnly => 1,
+		selectable => 0,
+		backColor => stringToColor($exargs->{color}),
+		%$butargs,
+		pack => { fill => 'none', expand => 0, padx => 3, side => "left", },
+	);
+	$swatch->set(onClick => sub {
 			my $p = Prima::ColorDialog-> create( quality => 1, );
 			$p->value(stringToColor($lab->text()));
 			my $ok = $p->execute();
 			if ($ok == 1) {
 				$lab->text(sprintf "#%06x", $p-> value());
-				ColorRow::matchColor($lab);
+				matchColor($lab,$swatch);
 			}
-		},
-		%$butargs,
-		pack => { fill => 'none', expand => 0, },
-		);
+		});
+	$lab->set(onChange => sub { matchColor($lab,$swatch); });
 	$self->arrange();
 	return $lab; # for signal connection, value pulling, etc.
 }
 
 sub matchColor {
-	my $self = shift;
-	$self->backColor(stringToColor($self->text()));
-# this comparison is very rudimentary and faulty. TODO: apply the luminosity test from DAOS to this
-	if ($self->backColor < stringToColor("808080")) {
-		$self->color(cl::White);
-	} else {
-		$self->color(cl::Black);
-	}
-	
+	my ($model,$target) = @_;
+	$target->backColor(stringToColor($model->text()));
 }
 
 sub stringToColor {
@@ -135,6 +129,8 @@ sub getFontString { # takes a reference to a Prima::Font
 }
 
 sub stringToFont {
+	# TODO: Add an option that allows getting just the face, not the size (for options dialog)
+	#  ...or just the size, not the face. (for accessibility spinner)
 	my ($string) = @_;
 	if ($string =~ m/(.+) (\d+)/) { # use regex to grab name and size
 		my $newfont = {
@@ -156,6 +152,7 @@ sub insert {
 	my ($self,$class,@args) = @_;
 	my $child = $self->SUPER::insert($class,@args);
 	$child->pack(side => "left");
+	return $child;
 }
 
 sub arrange { # TODO: "reverse" option
@@ -174,6 +171,7 @@ sub insert {
 	my ($self,$class,@args) = @_;
 	my $child = $self->SUPER::insert($class,@args);
 	$child->pack(side => "top");
+	return $child;
 }
 
 sub arrange {
@@ -181,6 +179,27 @@ sub arrange {
 	foreach ($self->get_widgets()) {
 		$_->pack(side => "top");
 	}
+}
+print ".";
+
+package StatusBar; #Replaces Gtk2::Statusbar
+# To prevent an awkward-looking status bar, this item MUST be placed in
+#  the window BEFORE any item that packs to the window's left or right!
+# EXAMPLE:
+#my $sb = StatusBar->new(owner => $mw)->prepare();
+
+use vars qw(@ISA);
+@ISA = qw(Prima::InputLine);
+
+sub prepare {
+	my $self = shift;
+	$self->set(
+		readOnly => 1,
+		text => ($self->text() or ""),
+		backColor => $self->owner()->backColor(),
+	);
+	$self->pack( fill => 'x', expand => 0, side => "bottom", );
+	return $self; # allows StatusBar->new()->prepare() call
 }
 print ".";
 
