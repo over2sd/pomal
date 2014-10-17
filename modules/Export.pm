@@ -2,6 +2,8 @@
 package Export;
 print __PACKAGE__;
 
+use FIO qw( config );
+use External qw( getTags );
 print ".";
 
 print " OK; ";

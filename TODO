@@ -19,6 +19,10 @@ Roadmap
 =======
 (release criteria)
 
+v0.1:
+-----
+Prima GUI to same point as old GTK2 GUI.
+
 v0.3:
 -----
 Option: display last episode watched, or next episode to watch?

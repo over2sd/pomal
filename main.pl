@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.01prealpha";
+my $version = "0.1.01prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -32,13 +32,10 @@ use FIO qw( loadConf );
 FIO::loadConf($conffilename);
 
 use PomalSQL;
-use Anime;
-use Manga;
+#use Anime;
+#use Manga;
 
-# perhaps load these on-the-fly when they are needed?
-use External;
-use Export;
-
+####### Rebuild Marker
 use PGUI;
 use Options;
 
