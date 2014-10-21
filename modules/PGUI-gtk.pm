@@ -1,5 +1,5 @@
 # Graphic User Interface module
-package PGUI;
+package PGUI-gtk;
 print __PACKAGE__;
 
 use Gtk2 -init; # requires GTK perl bindings

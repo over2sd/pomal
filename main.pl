@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.01prealpha";
+my $version = "0.1.02prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -35,22 +35,24 @@ use PomalSQL;
 #use Anime;
 #use Manga;
 
-####### Rebuild Marker
 use PGUI;
-use Options;
+#use Options;
+
+print "\nStarting GUI...\n";
+my $gui = PGUI::createMainWin($version);
 
 if ($remdb eq "yesIamSure") { # Debugging switch -x
 	unless (FIO::config('DB','type') eq "L") {
 		warn "I am removing the old database!!!\n";
-		my ($dbh) = PGUI::loadDBwithSplashDetail();
+		my ($dbh) = PGUI::loadDBwithSplashDetail($gui);
 		PomalSQL::doQuery(2,$dbh,"DROP DATABASE pomal");
 		closeDB($dbh);
 	}
 }
 
-my $dbh = PGUI::loadDBwithSplashDetail();
-print "\nStarting GUI...\n";
-my $gui = PGUI::createMainWin($version);
-PGUI::populateMainWin($dbh,$gui);
+my $dbh = PGUI::loadDBwithSplashDetail($gui);
+####### Rebuild Marker
+#PGUI::populateMainWin($dbh,$gui);
+message("Rebuild is not complete. Sorry.");
 $| = 0; # return to buffered STDOUT
-Gtk2->main();
+Prima->run();
