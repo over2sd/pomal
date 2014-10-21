@@ -6,7 +6,7 @@ use warnings;
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.02prealpha";
+my $version = "0.1.03prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -52,7 +52,7 @@ if ($remdb eq "yesIamSure") { # Debugging switch -x
 
 my $dbh = PGUI::loadDBwithSplashDetail($gui);
 ####### Rebuild Marker
-#PGUI::populateMainWin($dbh,$gui);
-message("Rebuild is not complete. Sorry.");
+PGUI::populateMainWin($dbh,$gui);
+Prima::message("Rebuild is not complete. Sorry.");
 $| = 0; # return to buffered STDOUT
 Prima->run();

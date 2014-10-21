@@ -4,6 +4,8 @@ package PGUI;
 print __PACKAGE__;
 	
 use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget Grids);
+$::wantUnicodeInput = 1;
+
 use GK;
 
 use FIO qw( config );
@@ -37,7 +39,7 @@ sub createMainWin {
 	if (config('Main','savepos')) {
 		unless ($w and $h) { $w = config('Main','width'); $h = config('Main','height'); }
 		$window->size($w,$h);
-		$window->move((config('Main','left') or 40),(config('Main','top') or 30));
+		$window->place( x => (config('Main','left') or 40), rely => 1, y=> -(config('Main','top') or 30), anchor => "nw");
 	}
 # This line does nothing apparent:
 #	if (defined config('Font','body')) { applyFont($window,0); }
@@ -61,6 +63,30 @@ sub createSplash {
 		pack => { fill => 'x', expand => 0, padx => 3, side => "left", },
 	);
 	return $progress,$vb;
+}
+print ".";
+
+sub getGUI {
+	unless (defined keys %windowset) { createMainWin(); }
+	my $key = shift;
+	if (defined $key) {
+		if (exists $windowset{$key}) {
+			return $windowset{$key};
+		} elsif ($key eq "tables") {
+			my $tables = {};
+			foreach (qw/ ani man /) {
+				foreach my $stat (qw/ wat ptw onh com drp /) {
+#					print "Making table " . $_ . $stat . ".\n";
+					$$tables{$_.$stat} = GK::Table->new();
+				}
+			}
+			$windowset{$key} = $tables;
+			return $tables;
+		} else {
+			return undef;
+		}
+	}
+	return \%windowset;
 }
 print ".";
 
@@ -185,6 +211,34 @@ sub loadDBwithSplashDetail {
 	if (0) { print "Splash screen steps: $step/$steps\n"; }
 	$box->close();
 	return $dbh;
+}
+print ".";
+
+sub populateMainWin {
+	my ($dbh,$gui,$refresh) = @_;
+	$$gui{status}->text(($refresh ? "Reb" : "B") . "uilding UI...");
+	if (defined $$gui{tabbar}) {
+		unless ($refresh) { warn "populateMainWin called twice without refresh flag"; return; }
+		$$gui{tabbar}->close(); # refresh
+	} 
+	# TODO: Refresh should check to see if there are existing objects (if conserving net traffic) and use those, if possible
+	# TODO: Refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
+	my %exargs;
+	if (defined config('UI','tabson')) { $exargs{orientation} = (config('UI','tabson') eq "bottom" ? tno::Bottom : tno::Top); } # set tab position based on config option
+	my $note = Prima::TabbedNotebook->create(
+		owner => getGUI("mainWin"),
+		style => tns::Simple,
+		tabs => [],
+		name => 'SeriesTypes',
+		tabsetProfile => {colored => 0, %exargs, },
+		pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
+	);
+	$$gui{tabbar} = $note; # store for additional tabs
+	foreach (qw[ ani man ]) {
+#		fillPage($dbh,$_,$gui);
+	}
+	$note->pageIndex(0);
+	$$gui{status}->text("Ready.");
 }
 print ".";
 
