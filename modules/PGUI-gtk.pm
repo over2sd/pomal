@@ -701,8 +701,8 @@ sub fillPage {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{maxparts} = 1
 		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		my $h = getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
-		my @keys = indexOrder($h,$sortkey);
+		my $h = PomalSQL::getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
+		my @keys = Common::indexOrder($h,$sortkey);
 		# make a label
 		$labels{$_} = Gtk2::Label->new($statuses{$_});
 		$labels{$_}->set_alignment(0.05,0.5);
@@ -777,43 +777,8 @@ sub importGUI {
 print ".";
 
 my $counter = 0;
-sub getTitlesByStatus {
-	my ($dbh,$rowtype,$status,%exargs) = @_;
-	my %stas = Common::getStatIndex();
-	my %rows;
-	my @parms;
-	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
-	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched" : "lastreread,lastreadc") . " FROM ";
-	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
-	push(@parms,$stas{$status});
-	if ($status eq 'wat') { push(@parms,$stas{rew}); }
-	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
-#	print "$st (@parms)=>";
-	my $href = PomalSQL::doQuery(3,$dbh,$st,@parms,$key);
-	return $href;
-}
-print ".";
-
-=item indexOrder()
-	Expects a reference to a hash that contains hashes of data as from fetchall_hashref.
-	This function will return an array of keys ordered by whichever internal hash key you provide.
-	@array from indexOrder($hashref,$]second-level key by which to sort first-level keys[)
-=cut
-sub indexOrder {
-	my ($hr,$orderkey) = @_;
-	my %hok;
-	foreach (keys %$hr) {
-		my $val = $_;
-		my $key = qq( $$hr{$_}{$orderkey} );
-		$hok{$key} = $val;
-	}
-	my @keys;
-	foreach (sort keys %hok){
-		push(@keys,$hok{$_});
-	}
-	return @keys;
-}
-print ".";
+# There was really no reason to have getTitlesByStatus in this package, since it didn't interact with the GUI in any way.
+# Likewise for indexOrder.
 
 sub incrementPortion {
 	my ($caller,$args) = @_;

@@ -284,5 +284,25 @@ sub addTags {
 }
 print ".";
 
+sub getTitlesByStatus {
+	my ($dbh,$rowtype,$status,%exargs) = @_;
+	my %stas = Common::getStatIndex();
+	my %rows;
+	my @parms;
+	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
+	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched" : "lastreread,lastreadc") . " FROM ";
+	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
+##		TODO here: max for movies/stand-alone manga
+	$st = $st . " LIMIT ? " if exists $exargs{limit};
+	push(@parms,$stas{$status});
+	if ($status eq 'wat') { push(@parms,$stas{rew}); }
+	push(@parms,$exargs{limit}) if exists $exargs{limit};
+	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
+#	print "$st (@parms)=>";
+	my $href = doQuery(3,$dbh,$st,@parms,$key);
+	return $href;
+}
+print ".";
+
 print " OK; ";
 1;

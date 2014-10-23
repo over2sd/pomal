@@ -57,6 +57,7 @@ sub mkOptBox {
 			'040' => ['c',"Show count in section tables",'linenos'],
 			'041' => ['c',"Refresh pages when title is moved",'moveredraw'],
 ##			'042' => ['c',"Move to active when changing parts seen",'incmove'],
+			'043' => ['x',"Background for list tables",'listbg',"#EEF"],
 
 			'050' => ['l',"Fonts",'Font'],
 			'054' => ['f',"Tab font/size: ",'label'],

@@ -2,13 +2,21 @@
 use strict; use warnings;
 package PGUI;
 print __PACKAGE__;
-	
-use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget Grids);
+
+use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget);
 $::wantUnicodeInput = 1;
 
-use GK;
+use GK qw( VBox Table );
 
 use FIO qw( config );
+
+sub Pdie {
+	my $message = shift;
+	my $w = getGUI('mainWin');
+	message_box("Fatal Error",$message,mb::Yes | mb::Error);
+	$w->close();
+	exit(-1);
+}
 
 sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 	my $self = shift;
@@ -27,6 +35,15 @@ sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 	];
 	return $menus;
 }
+print ".";
+
+sub convertColor {
+	my ($color,$force) = @_;
+	return undef unless (defined $color); # undef if no color given
+	return $color unless ($force or $color =~ m/^#/); # return color unchanged unless it starts with '#' (allows passing integer straight through, as saveConf is going to write it as int, but we want user to be able to write it as #ccf).
+	return ColorRow::stringToColor($color); # convert e.g. "#ccf" to integer needed by Prima
+}
+print ".";
 
 my %windowset;
 
@@ -66,22 +83,88 @@ sub createSplash {
 }
 print ".";
 
+sub fillPage {
+	my ($dbh,$index,$typ,$gui) = @_;
+	unless (defined $$gui{tabbar}) { Pdie("fillPage couldn't find tab bar!"); }
+	my $rowtyp = "???";
+	my $sortkey = 'title';
+	my ($target,$snote);
+	my %exargs;
+
+	$exargs{limit} = 5;
+
+	my %statuses = Common::getStatHash($typ);
+	my $labeltexts;
+	for ($typ) {
+		if (/ani/) { $rowtyp = "series"; }
+		elsif (/man/) { $rowtyp = "pub"; }
+		elsif (/mov/) { $rowtyp = "series"; $exargs{max} = 1; }
+		elsif (/sam/) { $rowtyp = "pub"; $exargs{max} = 1; }
+		elsif (/sug/) { warn "Suggestions are not yet supported"; return; }
+		elsif (/rec/) { warn "Recent activity is not yet supported"; return; }
+		else { warn "Something unexpected happened"; return; }
+	}
+#	applyFont($label,1);
+	$$gui{status}->text("Loading titles...");
+	foreach (Common::getStatOrder()) { # specific order
+		push(@$labeltexts,$statuses{$_});
+	}
+	unless (config('UI','statustabs') or 0) { # single box
+		$$gui{status}->text("Placing titles in box...");
+		$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ" );
+	} else {
+		$$gui{status}->text("Placing titles in tabs...");
+		my %args;
+		if (defined config('UI','tabson')) { $args{orientation} = (config('UI','tabson') eq "bottom" ? tno::Bottom : tno::Top); } # set tab position based on config option
+		$snote = $$gui{tabbar}->insert_to_page($index, "Prima::TabbedScrollNotebook" =>
+			style => tns::Simple,
+			tabs => $labeltexts,
+			name => 'SeriesTypes',
+			tabsetProfile => {colored => 0, %args, },
+			pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
+		);
+	}
+	my $page = 0;
+	foreach (keys %statuses) {
+		if (config('UI','statustabs') or 0) {
+			$target = $snote->insert_to_page($page, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
+		} else {
+			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
+		}
+		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
+		# $exargs{maxparts} = 1
+		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
+		my $h = PomalSQL::getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
+		my @keys = Common::indexOrder($h,$sortkey);
+		# make a label
+		$target->insert( Label => text => $$labeltexts[$page], pack => { fill => 'y', expand => 0, side => "left", padx => 5, },);
+#		applyFont($labels{$_},1);
+##		print "Looking for " . $typ . $_ . "...";
+		my $table = $target->insert( Table => backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
+		$table->remainder_column(config("UI",'linenos') ? 1 : 0); # which column is the title (dynamic sizing)
+###	TODO: push table to $gui's list of tables
+		my $tlist = { 'h' => {
+			title => "Title",
+			status => 0,
+			score => "Score",
+			sid => "?"
+		}};
+#		buildTitleRows("head",$table,$tlist,0,'h');
+		# fill the box with titles
+#		buildTitleRows($rowtyp,$table,$h,0,@keys);
+		# compile statistics from @a
+		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+		$page++;
+	}
+}
+print ".";
+
 sub getGUI {
 	unless (defined keys %windowset) { createMainWin(); }
 	my $key = shift;
 	if (defined $key) {
 		if (exists $windowset{$key}) {
 			return $windowset{$key};
-		} elsif ($key eq "tables") {
-			my $tables = {};
-			foreach (qw/ ani man /) {
-				foreach my $stat (qw/ wat ptw onh com drp /) {
-#					print "Making table " . $_ . $stat . ".\n";
-					$$tables{$_.$stat} = GK::Table->new();
-				}
-			}
-			$windowset{$key} = $tables;
-			return $tables;
 		} else {
 			return undef;
 		}
@@ -98,6 +181,13 @@ sub getStatus {
 		$status = StatusBar->new(owner => $win)->prepare();
 	}
 	return $status;
+}
+print ".";
+
+sub getTabByCode { # for definitively finding page ID of recent, suggested tabs...
+	my $code = shift;
+	my @tabs = (getGUI("tablist") or ());
+	return Common::findIn($code,@tabs);
 }
 print ".";
 
@@ -193,9 +283,8 @@ sub loadDBwithSplashDetail {
 		($dbh,$error) = PomalSQL::makeDB($base,$host,'pomal',$passwd,$uname);
 	}
 	unless (defined $dbh) { # error handling
-		message("ERROR: $error");
+		Pdie("ERROR: $error");
 		print "Exiting (no DB).\n";
-		$$gui{mainWin}->close();
 	} else {
 		$curstep->text("---");
 		$text->text("Connected.");
@@ -225,17 +314,33 @@ sub populateMainWin {
 	# TODO: Refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
 	my %exargs;
 	if (defined config('UI','tabson')) { $exargs{orientation} = (config('UI','tabson') eq "bottom" ? tno::Bottom : tno::Top); } # set tab position based on config option
+	my @tabtexts;
+	my @tabs = qw[ ani man ];
+	push(@tabs,'mov') if config('UI','moviesapart');
+	push(@tabs,'sam') if config('UI','moviesapart');
+	push(@tabs,'sug') if config('UI','suggtab');
+	push(@tabs,'rec') if config('UI','recenttab');
+	foreach (@tabs) { # because tabs are controlled by option, tabnames must also be.
+		if (/ani/) { push(@tabtexts,(config('Custom',$_) or "Anime")); }
+		elsif (/man/) { push(@tabtexts,(config('Custom',$_) or "Manga")); }
+		elsif (/mov/) { push(@tabtexts,(config('Custom',$_) or "Movies")); }
+		elsif (/sam/) { push(@tabtexts,(config('Custom',$_) or "Books")); }
+		elsif (/sug/) { push(@tabtexts,(config('Custom',$_) or "Suggestions")); }
+		elsif (/rec/) { push(@tabtexts,(config('Custom',$_) or "Recent")); }
+		else { push(@tabtexts,"Unknown"); }
+	}
 	my $note = Prima::TabbedNotebook->create(
 		owner => getGUI("mainWin"),
 		style => tns::Simple,
-		tabs => [],
+		tabs => \@tabtexts,
 		name => 'SeriesTypes',
 		tabsetProfile => {colored => 0, %exargs, },
 		pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
 	);
 	$$gui{tabbar} = $note; # store for additional tabs
-	foreach (qw[ ani man ]) {
-#		fillPage($dbh,$_,$gui);
+	$$gui{tablist} = \@tabs;
+	foreach (0..$#tabs) {
+		fillPage($dbh,$_,$tabs[$_],$gui);
 	}
 	$note->pageIndex(0);
 	$$gui{status}->text("Ready.");

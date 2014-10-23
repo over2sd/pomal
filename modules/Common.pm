@@ -152,5 +152,27 @@ sub getStatOrder { return qw( wat onh ptw com drp ); }
 sub getStatIndex { return ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 ); }
 print ".";
 
+=item indexOrder()
+	Expects a reference to a hash that contains hashes of data as from fetchall_hashref.
+	This function will return an array of keys ordered by whichever internal hash key you provide.
+	@array from indexOrder($hashref,$]second-level key by which to sort first-level keys[)
+=cut
+sub indexOrder {
+	my ($hr,$orderkey) = @_;
+	my %hok;
+	foreach (keys %$hr) {
+		my $val = $_;
+		my $key = qq( $$hr{$_}{$orderkey} );
+		$hok{$key} = [] unless exists $hok{$key};
+		push(@{ $hok{$key} },$val); # handles identical values without overwriting key
+	}
+	my @keys;
+	foreach (sort keys %hok){
+		push(@keys,@{ $hok{$_} });
+	}
+	return @keys;
+}
+print ".";
+
 print " OK; ";
 1;

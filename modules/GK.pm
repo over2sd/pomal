@@ -2,6 +2,9 @@ package GK; # Graphic Kit
 
 print __PACKAGE__;
 
+require Exporter;
+@ISA = qw(Exporter);
+@EXPORT = qw( ColorRow FontRow VBox HBox Table );
 use Prima qw(Application Buttons MsgBox FrameSet);
 
 package ColorRow; #Replaces Gtk2::ColorSelectionDialog
@@ -62,8 +65,7 @@ sub stringToColor {
 	if ($string =~ m/[\dA-Fa-f]{6}/) {
 		return hex $string;
 	} elsif ($string =~ m/[\dA-Fa-f]{3}/) {
-		my @s = split('',$string);
-		$string = $s[0] . $s[0] . $s[1] . $s[1] . $s[2] . $s[2];
+		$string = substr($string,0,1)x2 . substr($string,1,1)x2 . substr($string,2,1)x2;
 		return hex $string;
 	}
 	return 0;
@@ -195,6 +197,7 @@ sub prepare {
 	my $self = shift;
 	$self->set(
 		readOnly => 1,
+		selectable => 0,
 		text => ($self->text() or ""),
 		backColor => $self->owner()->backColor(),
 	);
