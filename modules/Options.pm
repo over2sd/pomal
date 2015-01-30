@@ -31,7 +31,7 @@ sub mkOptBox {
 			'005' => ['l',"Import/Export",'ImEx'],
 			'008' => ['c',"Use Disambiguation/Filter list",'filterinput'],
 			'006' => ['c',"Store tracking site credentials gleaned from imported XML",'gleanfromXML'],
-##			'007' => ['s',"Existing series names/epcounts will be updated from imported XML?",'importdiffnames',0,"never","ask","always"],
+##			'007' => ['s',"Update existing series names/epcounts from imported XML?",'importdiffnames',0,"never","ask","always"],
 
 			'010' => ['l',"Database",'DB'],
 			'011' => ['r',"Database type:",'type',0,'M','MySQL','L','SQLite'],
@@ -39,8 +39,9 @@ sub mkOptBox {
 			'013' => ['t',"Login name (if required):",'user'],
 			'014' => ['c',"Server requires password",'password'],
 ##			'01a' => ['c',"Update episode record with date on first change of episode"],
-##			'019' => ['r',"Conservation priority",'conserve','mem',"Memory",'net',"Network traffic (requires synchronization)"],
+##			'019' => ['r',"Conservation priority",'conserve',0,'mem',"Memory",'net',"Network traffic (requires synchronization)"],
 ##			'015' => ['c',"Maintain extended information table",'exinfo'],
+##			'01b' => ['r',"Use ID from:",'idauthority',0,'a',"AnimeDB",'m',"MAL",'h',"Hummingbird",'l',"Local (order of addition)"],
 
 			'030' => ['l',"User Interface",'UI'],
 ##			'032' => ['c',"Shown episode is next unseen (not last seen)",'shownext'],

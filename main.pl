@@ -2,11 +2,12 @@
 
 use strict;
 use warnings;
+use utf8;
 
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.04prealpha";
+my $version = "0.1.05prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -48,12 +49,14 @@ if ($remdb eq "yesIamSure") { # Debugging switch -x
 		PomalSQL::doQuery(2,$dbh,"DROP DATABASE pomal");
 		closeDB($dbh);
 	}
+	warn "Because the database was removed, I am now exiting.\n";
+	exit(0);
 }
 
 my $dbh = PGUI::loadDBwithSplashDetail($gui);
 ####### Rebuild Marker
 PGUI::populateMainWin($dbh,$gui);
-Prima::message("Rebuild is not complete. Sorry.");
+PGUI::sayBox($$gui{mainWin},"Rebuild is not complete. Sorry.");
 print "GUI contains: " . join(", ",keys %$gui) . "\n";
 $| = 0; # return to buffered STDOUT
 Prima->run();

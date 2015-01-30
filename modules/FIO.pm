@@ -78,17 +78,25 @@ print ".";
 
 sub getFileName {
 	my ($caller,$parent,$guir,$title,$action,$oktext,$pattern) = @_;
-	unless (defined $parent) { $parent = $$gui{mainWin}; }
-	$$guir{status}->push(0,"Choosing file...");
-	my $filebox = Gtk2::FileChooserDialog->new($title,$parent,$action,'Cancel','cancel',$oktext,'accept');
-	my $filter = Gtk2::FileFilter->new();
-	$filter->add_pattern($pattern or "*");
-	$filebox->set_filter($filter);
+	unless (defined $parent) { $parent = $$gui{mainWin}; } ####### gui = guir?
+	$$guir{status}->text("Choosing file...");
+#	my $filebox = Gtk2::FileChooserDialog->new($title,$parent,$action,'Cancel','cancel',$oktext,'accept');
+#	my $filter = Gtk2::FileFilter->new();
+#	$filter->add_pattern($pattern or "*");
+#	$filebox->set_filter($filter);
+	my $filebox = Prima::OpenDialog->new(
+		filter => [
+			['MAL title list' => '*.xml;*.xml.gz'],
+			['Uncompressed MAL title list' => '*.xml'],
+			['Compressed MAL title list' => '*.xml.gz']
+		],
+		fileMustExist => 1
+	);
 	my $filename = undef;
-	if ('accept' eq $filebox->run()) {
-		$filename = $filebox->get_filename();
+	if ($filebox->execute()) {
+		$filename = $filebox->fileName;
 	} else {
-		$$guir{status}->push(0,"Import cancelled.");
+		$$guir{status}->text("Import cancelled.");
 	}
 	$filebox->destroy();
 	return $filename;

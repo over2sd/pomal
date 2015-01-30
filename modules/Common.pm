@@ -174,5 +174,25 @@ sub indexOrder {
 }
 print ".";
 
+sub shorten {
+	my ($text,$len,$endlen) = @_;
+	return $text unless (defined $text and length($text) > $len); # don't do anything unless text is too long.
+	my $part2length = ($endlen or 7); # how many characters after the ellipsis?
+	my $part1length = $len - ($part2length + 3); # how many characters before the ellipsis?
+	if ($part1length < $part2length) { # if string would be lopsided (end part longer than beginning)
+		$part2length = 0; # end with ellipsis instead of string ending
+		$part1length = $len - 3;
+	}
+	if ($part1length < 7 or $part1length + 3 > $len - $part2length) { # resulting string is too short, or doesn't chop off enough for ellipsis to make sense.
+		warn "Shortening string of length " . length($text) . " ($text) to $len does not make sense. Skipping.\n";
+		return $text;
+	}
+	my $part1 = substr($text,0,$part1length); # part before ...
+	my $part2 = substr($text,-$part2length); # part after ...
+	$text = "$part1...$part2"; # strung together with ...
+	return $text;
+}
+print ".";
+
 print " OK; ";
 1;

@@ -15,14 +15,14 @@ sub importXML {
 	my $filetoopen = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose a file to import",'open',"Import","*.xml*");
 	my $res;
 	if (defined $filetoopen) {
-		PGUI::Gtkwait(1.5); # let the dialog box close before dominating the processor...
+		PGUI::Pwait(1.5); # let the dialog box close before dominating the processor...
 		for ($filetoopen) {
 			if (/animelist/ or /mangalist/) { $res = Import::fromMALgz($filetoopen,$dbh,$gui); }
 		}
 		if ($res == 0) {
-			$$gui{status}->push(0,"Import complete.");
+			$$gui{status}->text("Import complete.");
 		} else {
-			$$gui{status}->push(0,"Import failed.");
+			$$gui{status}->text("Import failed.");
 		}
 	} else {
 		$res = -1;
@@ -37,7 +37,7 @@ sub fromMALgz {
 	if ($fn =~ m/\.gz$/) {
 		$ufn =~ s/\.gz//; # if it is compressed, drop compression extension
 		print "\nAttempting to unzip $fn\n";
-		$$gui{status}->push(0,"Attempting to unzip $fn");
+		$$gui{status}->text("Attempting to unzip $fn");
 		FIO::gz_decom($fn,$ufn,$gui) or return -1;
 	}
 	return fromMAL($ufn,$dbh,$gui,$returndata);
@@ -51,7 +51,7 @@ sub fromMAL {
 	my $xml = XML::LibXML::Reader->new(location => $fn)
 		or return "Cannot read $fn!";
 	unless (defined $dbh) { return "No database connections supplied!"; }
-	$$gui{status}->push(0,"Attempting to import $fn to database...");
+	$$gui{status}->text("Attempting to import $fn to database...");
 	my $storecount = 0; my $upcount = 0;
 	my @list;
 	my $termcolor = config('Debug','termcolors') or 0;
@@ -106,9 +106,11 @@ sub fromMAL {
 			}
 		}
 		$loop = $xml->read();
+		$i++; # TODO: remove this temporary limiter
+		if ($i > 25) { $loop = 0; } # to shorten test runs
 	}
 	$|--;
-	$$gui{status}->push(0,"Successfully imported $storecount titles to database ($upcount updated)...");
+	$$gui{status}->text("Successfully imported $storecount titles to database ($upcount updated)...");
 	PGUI::sayBox(PGUI::getGUI(mainWin),"Successfully imported $storecount titles to database ($upcount updated)...");
 	if ($returndata) { return @list; } else { return $loop; }
 }
@@ -119,7 +121,7 @@ sub storeMAL {
 	my $basecol = ($termcolor ? Common::getColorsbyName("base") : "");
 	my %data;
 	print "\n" . ++$$info{$tags{foundkey}} . "/$$info{$tags{totkey}} " . ($table eq 'series' ? "A" : "M");
-	$$gui{status}->push(0,"Attempting to import $$info{$tags{foundkey}}/$$info{$tags{totkey}} anime to database...");
+	$$gui{status}->text("Attempting to import $$info{$tags{foundkey}}/$$info{$tags{totkey}} anime to database...");
 	if ($termcolor) { print $thiscol; }
 	foreach (keys %tags) {
 		$child = @{ $node->getChildrenByTagName($tags{$_}) or [] }[0];
@@ -161,7 +163,7 @@ sub storeMAL {
 		}
 		$data{score} *= 10; # move from 10-point to 100-point scale
 		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash(\%data,$table,$found);
-		if (0) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
+		if (1) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
 		# Insert/update row
 		$error = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
 		# process tags and add them to the DB

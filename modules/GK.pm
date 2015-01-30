@@ -493,8 +493,9 @@ sub adjust_row {
 sub rows { # provides a particular row (ID $row) or an array of all rows
 	my ($self,$row) = @_;
 	my $r = $self->{rows};
-	if (defined $row) { 
-		return $$r[$row];
+	if (defined $row) {
+		return $$r[$row] unless $row < 0; # return specified row,
+		return scalar @$r; # or number of rows (aka, next rowID)
 	}
 	return @$r;
 }
