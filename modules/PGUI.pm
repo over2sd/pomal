@@ -6,21 +6,8 @@ print __PACKAGE__;
 use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget);
 $::wantUnicodeInput = 1;
 
-use GK qw( VBox Table );
-
+use PGK qw( VBox Table Pdie Pwait );
 use FIO qw( config );
-
-sub Pdie {
-	my $message = shift;
-	my $w = getGUI('mainWin');
-	message_box("Fatal Error",$message,mb::Yes | mb::Error);
-	$w->close();
-	exit(-1);
-}
-
-sub Pwait {
-	# Placeholder for if I ever figure out how to do a non-blocking sleep function in Prima
-}
 
 sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 	my $self = shift;
@@ -29,7 +16,7 @@ sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 			['~Import', 'Ctrl-O', '^O', sub { importGUI() } ],
 			['~Export', sub { message('export!') }],
 #			['~Synchronize', 'Ctrl-S', '^S', sub { message('synch!') }],
-#			['~Preferences', \&callOptBox],
+			['~Preferences', sub { return callOptBox(getGUI()); }],
 			[],
 			['Close', 'Ctrl-W', km::Ctrl | ord('W'), sub { $self->close() } ],
 		]],
@@ -59,7 +46,7 @@ sub buildTitleRows {
 	my $updater;
 #	if ($bodyfont) { applyFont($target,0); }
 	unless ((config('DB','conserve') or '') eq 'net') {
-		$updater = PomalSQL::getDB();
+		$updater = FlexSQL::getDB();
 	} else {
 		warn "Conserving net traffic is not yet supported"; $updater = PomallSQL::getDB();
 	}
@@ -135,7 +122,7 @@ sub buildTitleRows {
 		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
 			unless ($record{status} == 4) {
 				my $font = FontRow::stringToFont(config('Font','progress') or "");
-				my $incbut = $pchabox->insert( Button =>
+				my $incbut = $pchabox->insert( SpeedButton =>
 					text => "+",
 					backColor => $buttoncolor,
 					font => $font,
@@ -161,7 +148,7 @@ sub buildTitleRows {
 				# put in a button to increment the number of volumes (using read or reread volumes)
 				unless ($record{status} == 4) {
 					my $font = FontRow::stringToFont(config('Font','progress') or "");
-					my $incvbut = $pvolbox->insert( Button =>
+					my $incvbut = $pvolbox->insert( SpeedButton =>
 						text => "+",
 						backColor => $buttoncolor,
 						font => $font,
@@ -195,7 +182,7 @@ sub buildTitleRows {
 			);
 #			if ($bodyfont) { applyFont($score,0); }
 		} else {
-			my $score = $target->place_in_table($rownum,3 + $numbered, Button =>
+			my $score = $target->place_in_table($rownum,3 + $numbered, SpeedButton =>
 				text => sprintf("%.1f",$record{score} / 10), # put in the score
 #				onClick => sub { scoreSlider($k,$titletype,$updater) },
 			);
@@ -262,7 +249,7 @@ sub fillPage {
 
 	$exargs{limit} = 5;
 
-	my %statuses = Common::getStatHash($typ);
+	my %statuses = Sui::getStatHash($typ);
 	my $labeltexts;
 	for ($typ) {
 		if (/ani/) { $rowtyp = "series"; }
@@ -276,7 +263,7 @@ sub fillPage {
 #	applyFont($label,1);
 	$$gui{status}->text("Loading titles...");
 	my $page = 0;
-	foreach (Common::getStatOrder()) { # specific order
+	foreach (Sui::getStatOrder()) { # specific order
 		push(@$labeltexts,$statuses{$_});
 		$pages{$_} = $page++;
 	}
@@ -296,7 +283,7 @@ sub fillPage {
 		);
 	}
 	
-	foreach (Common::getStatOrder()) {
+	foreach (Sui::getStatOrder()) {
 		$page = $pages{$_};
 		if (config('UI','statustabs') or 0) {
 			$target = $snote->insert_to_page($page, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
@@ -306,7 +293,7 @@ sub fillPage {
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{maxparts} = 1
 		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		my $h = PomalSQL::getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
+		my $h = Sui::getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
 		my @keys = Common::indexOrder($h,$sortkey);
 		# make a label
 		my $label = $target->insert( Label => text => $$labeltexts[$page], pack => { fill => 'y', expand => 0, side => "left", padx => 5, },);
@@ -370,7 +357,7 @@ print ".";
 sub importGUI {
 	use Import qw( importXML );
 	my $gui = getGUI();
-	my $dbh = PomalSQL::getDB();
+	my $dbh = FlexSQL::getDB();
 	### Later, put selection here for type of import to make
 	# For now, just allowing import of MAL XML file
 	return Import::importXML($dbh,$gui);
@@ -460,13 +447,13 @@ sub loadDBwithSplashDetail {
 	$curstep->text("Establish database connection.");
 	$text->text("Connecting to database...");
 	$prog->value(++$step/$steps*100);
-	my ($dbh,$error) = PomalSQL::getDB($base,$host,'pomal',$passwd,$uname);
+	my ($dbh,$error) = FlexSQL::getDB($base,$host,'pomal',$passwd,$uname);
 	if ($error =~ m/Unknown database/) { # rudimentary detection of first run
 		$steps++;
 		$curstep->text("Database not found. Attempting to initialize...");
 		$text->text("Attempting to initialize database...");
 		$prog->value(++$step/$steps*100);
-		($dbh,$error) = PomalSQL::makeDB($base,$host,'pomal',$passwd,$uname);
+		($dbh,$error) = FlexSQL::makeDB($base,$host,'pomal',$passwd,$uname);
 	}
 	unless (defined $dbh) { # error handling
 		Pdie("ERROR: $error");
@@ -475,11 +462,11 @@ sub loadDBwithSplashDetail {
 		$curstep->text("---");
 		$text->text("Connected.");
 	}
-	unless (PomalSQL::table_exists($dbh,'tags')) {
+	unless (FlexSQL::table_exists($dbh,'tags')) {
 		$steps++;
 		$prog->value(++$step/$steps*100);
 		$text->text("Attempting to initialize database tables...");
-		PomalSQL::makeTables($dbh);
+		FlexSQL::makeTables($dbh);
 	}
 	$text->text("Done loading database.");
 	$prog->value(++$step/$steps*100);
@@ -538,6 +525,13 @@ print ".";
 sub sayBox {
 	my ($parent,$text) = @_;
 	message($text,owner=>$parent);
+}
+print ".";
+
+sub callOptBox {
+	my $gui = shift || getGUI();
+	my %options = Sui::passData('opts');
+	return Options::mkOptBox($gui,%options);
 }
 print ".";
 
