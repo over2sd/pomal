@@ -6,7 +6,7 @@ print __PACKAGE__;
 use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget);
 $::wantUnicodeInput = 1;
 
-use PGK qw( VBox Table Pdie Pwait );
+use PGK qw( VBox Table Pdie Pwait applyFont );
 use FIO qw( config );
 
 sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
@@ -28,7 +28,7 @@ sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 }
 print ".";
 
-sub buildTitleRows {
+sub buildTableRows {
 	my ($titletype,$target,$tlist,$rownum,@keys) = @_;
 #print "\nbTR($titletype,$target,$tlist,$rownum,[".join(',',@keys)."])\n";
 	my $numbered = (config('UI','linenos') ? 1 : 0);
@@ -215,7 +215,7 @@ sub createMainWin {
 		$window->place( x => (config('Main','left') or 40), rely => 1, y=> -(config('Main','top') or 30), anchor => "nw");
 	}
 # This line does nothing apparent:
-#	if (defined config('Font','body')) { applyFont($window,0); }
+#	if (defined config('Font','body')) { applyFont('body',$window); }
 	$window->set( menuItems => buildMenus($window));
 
 	#pack it all into the hash for main program use
@@ -247,7 +247,7 @@ sub fillPage {
 	my ($target,$snote,%pages);
 	my %exargs;
 
-	$exargs{limit} = 5;
+#	$exargs{limit} = 5;
 
 	my %statuses = Sui::getStatHash($typ);
 	my $labeltexts;
@@ -260,7 +260,6 @@ sub fillPage {
 		elsif (/rec/) { warn "Recent activity is not yet supported"; return; }
 		else { warn "Something unexpected happened"; return; }
 	}
-#	applyFont($label,1);
 	$$gui{status}->text("Loading titles...");
 	my $page = 0;
 	foreach (Sui::getStatOrder()) { # specific order
@@ -282,8 +281,12 @@ sub fillPage {
 			pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
 		);
 	}
-	
+
+	my @cumulativestats = (0,0,0,0,0);
+	my @cumulativescores;
+	my $watched = ($rowtyp eq 'pub' ? "Chapters read" : "Episodes watched");
 	foreach (Sui::getStatOrder()) {
+		$::application->yield();
 		$page = $pages{$_};
 		if (config('UI','statustabs') or 0) {
 			$target = $snote->insert_to_page($page, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
@@ -297,14 +300,12 @@ sub fillPage {
 		my @keys = Common::indexOrder($h,$sortkey);
 		# make a label
 		my $label = $target->insert( Label => text => $$labeltexts[$page], pack => { fill => 'y', expand => 0, side => "left", padx => 5, },);
-#		applyFont($labels{$_},1);
-##		print "Looking for " . $typ . $_ . "...";
-		my $table = $target->insert( Table =>
+		applyFont('label',$label);
+#		applyFont('label',$labels{$_});
+##		print "Looking for " . $typ . "/" . $_ . "...";
+		my $table = $target->insert( VBox =>
+			name => $$labeltexts[$page],
 			backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
-		$table->expand_width(1);
-# 		$table->separator(config('UI','rulesep') or 0);
-		$table->remainder_column(config("UI",'linenos') ? 1 : 0); # which column is the title (dynamic sizing)
-# config('UI','rulesep')
 ###	TODO: push table to $gui's list of tables
 		my $tlist = { 'h' => {
 			title => "Title",
@@ -312,13 +313,38 @@ sub fillPage {
 			score => "Score",
 			sid => "?"
 		}};
+		$::application->yield();
 		buildTitleRows("head",$table,$tlist,0,'h');
 		# fill the box with titles
 		buildTitleRows($rowtyp,$table,$h,0,@keys);
-		$table->adjust_rows_all(1); # A full adjustment is recommended after table has been populated.
 		# compile statistics from @a
+		my @tablestats = (0,0,0,0,0);
+		my @scorelist;
+		foreach (values %$h) {
+			push(@scorelist,$$_{score}) unless $$_{score} == 0;
+			$tablestats[0]++;
+			$tablestats[1] += 1 unless $$_{score} == 0;
+			$tablestats[2] += $$_{score};
+			$tablestats[3] += ($$_{status} == 4 ? ($rowtyp eq 'series' ? $$_{episodes} : $$_{chapters} ) : ($rowtyp eq 'series' ? ($$_{status} == 3 ? $$_{lastrewatched} : $$_{lastwatched} ) : ($$_{status} == 3 ? $$_{lastreread} : $$_{lastreadc} )));
+# @cumulativestats = [count,scorecount,scoresum,progress,medianscore]
+		}
+		$::application->yield();
+#		$tablestats[4] = Common::median(\@scorelist,0);
 		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+		$tablestats[1]++ unless $tablestats[1]; # prevent divide by zero
+#printf("Titles: $tablestats[0] Mean score: %.2f Median score: %.2f Episodes watched: $tablestats[3]\n",($tablestats[2]/($tablestats[1]*10)),$tablestats[4]/10);
+printf("Titles: $tablestats[0] Mean score: %.2f $watched: $tablestats[3]\n",($tablestats[2]/($tablestats[1]*10)));
+		push(@cumulativescores,@scorelist);
+		$cumulativestats[0] += $tablestats[0];
+		$cumulativestats[1] += $tablestats[1];
+		$cumulativestats[2] += $tablestats[2];
+		$cumulativestats[3] += $tablestats[3];
 	}
+	$::application->yield();
+#	$cumulativestats[4] = Common::median(\@cumulativescores,0);
+	$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
+#printf("Total: Titles: $cumulativestats[0] Mean score: %.2f Median score: %.2f Episodes watched: $cumulativestats[3]\n",($cumulativestats[2]/($cumulativestats[1]*10)),$cumulativestats[4]/10);
+printf("Total: Titles: $cumulativestats[0] Mean score: %.2f $watched: $cumulativestats[3]\n",($cumulativestats[2]/($cumulativestats[1]*10)));
 }
 print ".";
 
@@ -535,5 +561,178 @@ sub callOptBox {
 }
 print ".";
 
+sub buildTitleRows {
+	my ($titletype,$target,$tlist,$rownum,@keys) = @_;
+#print "\nbTR($titletype,$target,$tlist,$rownum,[".join(',',@keys)."])\n";
+	my $numbered = (config('UI','linenos') ? 1 : 0);
+	my @widths = Sui::passData('twidths');
+	shift(@widths) unless config("UI",'linenos');
+	my $rowshown = $rownum;
+	my $headcolor = "#CCCCFF";
+	my $backcolor = "#EEF";
+	my $buttoncolor = "#aac";
+	$headcolor = convertColor(config('UI','headerbg') or $headcolor) if $titletype eq 'head';
+	$backcolor = convertColor(config('UI','listbg') or $backcolor);
+	$buttoncolor = convertColor(config('UI','buttonbg') or $buttoncolor);
+	# each item in hash is a hash
+	my @rows;
+	my $rowheight = (config('Table','t1rowheight') or 60);
+	my $updater;
+	unless ((config('DB','conserve') or '') eq 'net') {
+		$updater = FlexSQL::getDB();
+	} else {
+		warn "Conserving net traffic is not yet supported"; $updater = PomallSQL::getDB();
+	}
+	foreach my $k (@keys) { # loop over list
+		$rownum++; $rowshown++;
+##		print "Building row for title $k...\n";
+		my $row = $target->insert( HBox => name => "row$rownum", pack => { fill => 'x', expand => 0, },);
+		applyFont('body',$row);
+		$row->backColor($titletype eq 'head' ? $headcolor : $backcolor);
+		my %record = %{$$tlist{$k}};
+		if ($titletype eq 'head') {
+			if ($numbered) {
+				my $nolabel = $row->insert( Label => text => "#");
+				$nolabel->sizeMin($widths[0],$nolabel->height) if (defined $widths[0] and $widths[0] > 0);
+				applyFont('body',$nolabel);
+				$nolabel->backColor($headcolor);
+				$rownum--;
+			}
+		} else {
+			my $nolabel = $row->insert( Label => text => ($numbered ? "$rowshown" : ""));
+			$nolabel->sizeMin($widths[0],$nolabel->height) if (defined $widths[0] and $widths[0] > 0);
+			applyFont('body',$nolabel);
+		}
+		# column between 0 and 1, remainder column. Ignore width
+		my $title = $row->insert( Label => text => Common::shorten($record{title},30), pack => { fill => 'x', expand => 1, }, ); # put in the title of the series
+		applyFont('body',$title);
+		if ($titletype eq 'head') {
+			$title->backColor($headcolor);
+		}
+		if ($titletype eq 'head') {
+			my $cb = $row->insert( Label => text => "", pack => { fill => 'none', expand => 0, }, );
+			$cb->sizeMin($widths[1],$cb->height) if (defined $widths[1] and $widths[1] > 0);
+			$cb->backColor($headcolor);
+		} else {
+			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
+			my $rew = $rbox->insert(Label => text => ($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "   ")); # put in the rewatching status
+			$rbox->arrange();
+#			applyFont('body',$rew);
+			unless ($record{status} == 4) { # No move button for completed page
+				my $status = $record{status};
+				$rbox->insert( Label =>
+					text => "m",
+					backColor => $buttoncolor,
+#					onClick => sub { chooseStatus($rew,\$status,$k,$titletype); },
+		# put in button(s) for moving to another status? TODO later
+				);
+			} # but there might some day be a "Rewatch this show" button here
+			$rbox->sizeMin($widths[1],$rbox->height) if (defined $widths[1] and $widths[1] > 0);
+		}
+		if ($titletype eq 'head') {
+			my $plabel = $row->insert( Label => text => "Progress");
+			$plabel->sizeMin($widths[2],$plabel->height) if (defined $widths[2] and $widths[2] > 0);
+			applyFont('body',$plabel);
+			$plabel->backColor($headcolor);
+		} else {
+			my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
+			my $pvbox = $row->insert( VBox => backColor => $backcolor);
+			my $pchabox = $pvbox->insert( HBox => backColor => $backcolor);
+		# put in the number of watched/episodes (button) -- or chapters
+			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
+			my $pbut = $pchabox->insert( Label =>
+				text => $pprog,
+				pack => { expand => 1, fill => 'both', },
+					# link the button to a dialog asking for a new value
+#				onClick => sub { askPortion($pvbox,$updateform,$k,$updater);},
+			);
+			applyFont('button',$pbut);
+			# put in a label giving the % completed (using watch or rewatched episodes)
+			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100) * 100;
+			# read config option and display percentage as either a label or a progress bar
+			if (config('UI','graphicprogress')) {
+				my $percb = $pvbox->insert( Gauge => size => [100,24], value => $rawperc, pack => { expand => 0, fill => 'none', },);
+				applyFont('progress',$percb);
+			} else {
+				my $pertxt = sprintf("%.2f%%",$rawperc);
+				my $percl = $pvbox->insert( Label => text => $pertxt);
+				applyFont('progress',$percl);
+			}
+			# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
+			unless ($record{status} == 4) {
+				my $incbut = $pchabox->insert( SpeedButton =>
+					text => "+",
+					backColor => $buttoncolor,
+					font => applyFont('progbut'),
+					autoHeight => 1,
+					autowidth => 1,
+					minSize => [10,10],
+					pack => { fill => "none", expand => 0, },
+#					onClick => sub { incrementPortion($pvbox,$updateform,$k,$updater); },
+				);
+			}
+			# if manga, put in the number of read/volumes (button)
+			if ($titletype eq 'pub') {
+				my $pvolbox = $pvbox->insert(HBox => backColor => $backcolor);
+				# put in the number of watched/episodes (button) -- or chapters
+				my $vbut = $pvolbox->insert( Label =>
+					text => "$record{lastreadv}/$record{volumes}"
+#					onClick => sub { askPortion($pvbox,$upform,$k,$updater); },
+				);
+				# link the button to a dialog asking for a new value
+				my $upform = ($record{status} == 3 ? 5 : 4 );
+				# put in a button to increment the number of volumes (using read or reread volumes)
+				unless ($record{status} == 4) {
+					my $incvbut = $pvolbox->insert( SpeedButton =>
+						text => "+",
+						backColor => $buttoncolor,
+						font => applyFont('progbut'),
+						minSize => [10,10],
+						pack => { fill => "none", expand => 0, },
+#						onClick => sub { incrementPortion($pvbox,$upform,$k,$updater) },
+					);
+				}
+			}
+			$pvbox->sizeMin($widths[2],$rowheight * ($titletype eq 'pub' ? 2 : 1)) if (defined $widths[2] and $widths[2] > 0);
+		}
+		if ($titletype eq 'head') {
+			my $score = $row->insert( Label =>
+				text => $record{score},
+				backColor => convertColor($headcolor),
+			);
+			$score->sizeMin($widths[3],$score->height) if (defined $widths[3] and $widths[3] > 0 and $widths[3] != 52); # not sure why 52 causes Prima::ScrollGroup::reset to go belly up, but I've tried other values near and far.
+		} else {
+			my $score = $row->insert( SpeedButton =>
+				text => sprintf("%.1f",$record{score} / 10), # put in the score
+				font => applyFont('button'),
+#				onClick => sub { scoreSlider($k,$titletype,$updater) },
+			);
+			$score->sizeMin($widths[3],$score->height) if (defined $widths[3] and $widths[3] > 0);
+		}
+		if ($titletype eq 'head') {
+#			my $tags = Gtk2::Label->new("Tags");
+#			$tags->show();
+#			if ($bodyfont) { applyFont($tags,0); }
+#			my $cb = Gtk2::EventBox->new();
+#			$cb->add($tags);
+#			$cb->show();
+#			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
+#			$target->attach($cb,4,5,0,1,qw( fill ),qw( fill ),0,0);
+#			$tags->width($widths[4]) if (defined $widths[4] and $widths[4] > 0);
+		} else {
+#			my $tags = Gtk2::Button->new("Show/Edit tags"); # put in the tag list (button?)
+## use $k for callback; it should contain the series/pub id #.
+#			$tags->show();
+#			$target->attach($tags,4,5,$rownum,$rownum+1,qw( shrink ),qw( shrink),1,0);
+#			$tags->width($widths[4]) if (defined $widths[4] and $widths[4] > 0);
+		}
+		# put in a button to edit the title/list its volumes/episodes
+#			$view->width($widths[6]) if (defined $widths[6] and $widths[6] > 0);
+	} # end foreach my $k (@keys)
+#	return @rows;
+}
+print ".";
+
 print " OK; ";
+
 1;

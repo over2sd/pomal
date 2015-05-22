@@ -37,6 +37,8 @@ sub passData {
 	for ($key) {
 		if (/^opts$/) {
 			return getOpts();
+		} elsif (/^twidths$/) {
+			return getTableWidths();
 		} else {
 			return $data{$key} or undef;
 		}
@@ -115,8 +117,9 @@ sub getOpts {
 		'050' => ['l',"Fonts",'Font'],
 		'054' => ['f',"Tab font/size: ",'label'],
 		'051' => ['f',"General font/size: ",'body'],
-		'053' => ['f',"Special font/size: ",'special'], # for lack of a better term
+		'055' => ['f',"Special font/size: ",'special'], # for lack of a better term
 		'052' => ['f',"Progress font/size: ",'progress'],
+		'053' => ['f',"Progress Button font/size: ",'progbut'],
 
 		'070' => ['l',"Custom Text",'Custom'],
 		'072' => ['t',"Anime:",'ani'],
@@ -126,6 +129,20 @@ sub getOpts {
 ##		'075' => ['t',"Stand-alone Manga:",'sam'],
 		'076' => ['t',"Options dialog",'options'],
 
+		'077' => ['l',"Table",'Table'],
+		'080' => ['g',"Column Widths",'label'],
+		'081' => ['n',"Rewatch/Move",'t1c1',140,0,800,1,10],
+		'082' => ['n',"Progress",'t1c2',105,0,800,1,10],
+		'083' => ['n',"Score",'t1c3',51,0,800,1,10],
+		'08f' => ['n',"Row #s",'t1c0',21,0,800,1,10],
+#		'084' => ['n',"Tags",'t1c4',60,0,800,1,10],
+#		'085' => ['n',"Column 5",'t1c5',0,0,800,1,10],
+#		'086' => ['n',"View",'t1c6',60,0,800,1,10],
+		'08a' => ['g',"Rows:",'label'],
+		'08b' => ['n',"Height",'t1rowheight',60,0,600,1,10],
+#		'078' => ['g',"Table",'label'],
+#		'079' => ['n',"Table Width",'twidth',640,600,8196,10,100],
+
 		'ff0' => ['l',"Debug Options",'Debug'],
 		'ff1' => ['c',"Colored terminal output",'termcolors']
 	);
@@ -133,5 +150,15 @@ sub getOpts {
 }
 print ".";
 
+sub getTableWidths {
+	my @list = ((FIO::config('Table','t1c0') or 20));
+	push(@list,(FIO::config('Table','t1c1') or 140));
+	push(@list,(FIO::config('Table','t1c2') or 100));
+	push(@list,(FIO::config('Table','t1c3') or 53));
+	push(@list,(FIO::config('Table','t1c4') or 0));
+	push(@list,(FIO::config('Table','t1c5') or 0));
+	push(@list,(FIO::config('Table','t1c6') or 0));
+	return @list;
+}
 print "OK; ";
 1;

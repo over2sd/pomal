@@ -351,5 +351,18 @@ sub defineAllValues {
 }
 print ".";
 
+sub median {
+	my ($aref,$default) = @_;
+	return $default unless (defined $aref and @$aref);
+	my $midpoint = int(@$aref /2);
+	my @sortedscores = sort { $a <=> $b } @$aref;
+	if ($midpoint % 2) {
+		return $sortedscores[$midpoint];
+	} else {
+		return ($sortedscores[$midpoint] + $sortedscores[$midpoint-1])/2;
+	}
+}
+print ".";
+
 print " OK; ";
 1;

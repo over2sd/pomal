@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use diagnostics;
 use utf8;
 
 $|++; # Immediate STDOUT, maybe?
@@ -56,7 +57,7 @@ if ($remdb eq "yesIamSure") { # Debugging switch -x
 
 PGK::startwithDB($gui,'Pomal');
 ####### Rebuild Marker
-PGUI::sayBox($$gui{mainWin},"Rebuild is not complete. Sorry.");
+#PGUI::sayBox($$gui{mainWin},"Rebuild is not complete. Sorry.");
 print "GUI contains: " . join(", ",keys %$gui) . "\n";
 $| = 0; # return to buffered STDOUT
 Prima->run();

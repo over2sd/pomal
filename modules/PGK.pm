@@ -511,7 +511,7 @@ sub profile_default {
 		remainder_column => undef, # The column whose width is variable (-1 puts extra space BEFORE first column, effectively justifying table to right)
 		rows => [], # the rows of the table
 		totalWidth => 0, # The table's total width
-		maxWidth => 0, # the width of the table's avaiable space
+		maxWidth => 0, # the width of the table's available space
 		cellMargin => 5, # the margin around the cells
 		expand => 1, # expand to fill available width (versus setting right edge as sum of column widths)
 		requiredSize => [], # width, height required by table's children and margins
@@ -555,7 +555,7 @@ sub place_in_table {
 		push(@$r,$newrow); # push the new row into the list of rows
 		$max = $#$r; # update max, since we're about to use it
 		$row = $max; # whether we got to the desired row or not, put it in the new row
-	} elsif ($row < 0) { # otherwise, if the row is less than 0, assume the user wants us to put it in the highest row:
+	} elsif ($row < 0) { # otherwise, if the row is less than 0, the user wants us to put it in the highest row:
 		$row = ($#$r < 0 ? 0 : $#$r); # existing row is okay.
 	}
 	unless (defined $$r[$row]) { $$r[$row] = []; } # failsafe
@@ -1166,7 +1166,7 @@ sub refreshUI {
 	$gui = getGUI() unless (defined $$gui{status});
 	$dbh = FlexSQL::getDB() unless (defined $dbh);
 	print "Refreshing UI...\n";
-	populateMainWin($dbh,$gui,1);
+	PGUI::populateMainWin($dbh,$gui,1);
 }
 print ".";
 

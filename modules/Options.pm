@@ -91,6 +91,8 @@ PGUI::devHelp($parent,"Date type options ($key)");
 			my $f = FontRow->new( owner => $parent );
 			my $e = $f->build($lab,{ font => (config($s,$key) or "") },{ text => "Select", });
 			$e->onChange( sub { optChange($e,[$change,$pos,$saveHash,$s,$key,$applyBut,(config($s,$key) or "")]); } );
+		}elsif (/g/) {
+			$parent->insert( Label => text => $lab, alignment => ta::Center, pack => { fill => 'x', expand => 0 }, font => PGK::applyFont($key));
 		}elsif (/m/) {
 PGUI::devHelp($parent,"Mask page options ($key)");
 		}elsif (/n/) {
@@ -186,7 +188,7 @@ sub saveFromOpt {
 	$window->destroy();
 	# TODO: check here to see if something potentially crash-inducing has been changed, and shut down cleanly, instead, after informing user that a restart is required.
 	formatTooltips(); # set tooltip format, in case it was changed.
-	PGUI::refreshUI(PGUI::getGUI(),FlexSQL::getDB()); # refresh the UI
+	PGK::refreshUI(PGUI::getGUI(),FlexSQL::getDB()); # refresh the UI
 }
 print ".";
 
