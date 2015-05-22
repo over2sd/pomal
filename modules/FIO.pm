@@ -77,11 +77,12 @@ sub gz_decom {
 	my $window = $$guiref{mainWin};
 	use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 	sub gzfail { 
-		PGUI::sayBox($window,$_);
+		PGUI::sayBox(@_);
 		return 0;
 		}
+#TODO: Make sure the failure return value passes through.
 	gunzip($ifn => $ofn, Autoclose => 1)
-		or gzfail($GunzipError);
+		or gzfail($window,$GunzipError);
 	return 1;
 }
 # TODO: Check this function more thoroughly to see if it does what is expected.

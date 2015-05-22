@@ -278,14 +278,17 @@ sub fillPage {
 			tabs => $labeltexts,
 			name => 'SeriesTypes',
 			tabsetProfile => {colored => 0, %args, },
-			pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
+			pack => { fill => 'both', expand => 1, pady => 3, side => "top", },
 		);
 	}
-
+#	$snote->hide();
 	my @cumulativestats = (0,0,0,0,0);
 	my @cumulativescores;
 	my $watched = ($rowtyp eq 'pub' ? "Chapters read" : "Episodes watched");
 	foreach (Sui::getStatOrder()) {
+		my $typestring = ($rowtyp eq 'pub' ? (config('Custom','man') or "Manga") : (config('Custom','ani') or "Anime"));
+		my $status = $statuses{$_};
+		$$gui{status}->text("Placing titles in tabs ($typestring/$status)...");
 		$::application->yield();
 		$page = $pages{$_};
 		if (config('UI','statustabs') or 0) {
@@ -293,6 +296,7 @@ sub fillPage {
 		} else {
 			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
 		}
+#		$target->enabled(0);
 		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 		# $exargs{maxparts} = 1
 		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
@@ -317,36 +321,56 @@ sub fillPage {
 		buildTitleRows("head",$table,$tlist,0,'h');
 		# fill the box with titles
 		buildTitleRows($rowtyp,$table,$h,0,@keys);
-		# compile statistics from @a
-		my @tablestats = (0,0,0,0,0);
-		my @scorelist;
-		foreach (values %$h) {
-			push(@scorelist,$$_{score}) unless $$_{score} == 0;
-			$tablestats[0]++;
-			$tablestats[1] += 1 unless $$_{score} == 0;
-			$tablestats[2] += $$_{score};
-			$tablestats[3] += ($$_{status} == 4 ? ($rowtyp eq 'series' ? $$_{episodes} : $$_{chapters} ) : ($rowtyp eq 'series' ? ($$_{status} == 3 ? $$_{lastrewatched} : $$_{lastwatched} ) : ($$_{status} == 3 ? $$_{lastreread} : $$_{lastreadc} )));
+		if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+			# compile statistics from @a
+			my @tablestats = (0,0,0,0,0);
+			my @scorelist;
+			foreach (values %$h) {
+				push(@scorelist,$$_{score}) unless $$_{score} == 0;
+				$tablestats[0]++;
+				$tablestats[1] += 1 unless $$_{score} == 0;
+				$tablestats[2] += $$_{score};
+				$tablestats[3] += ($$_{status} == 4 ? ($rowtyp eq 'series' ? $$_{episodes} : $$_{chapters} ) : ($rowtyp eq 'series' ? ($$_{status} == 3 ? $$_{lastrewatched} : $$_{lastwatched} ) : ($$_{status} == 3 ? $$_{lastreread} : $$_{lastreadc} )));
 # @cumulativestats = [count,scorecount,scoresum,progress,medianscore]
+			}
+			$::application->yield();
+			$tablestats[1]++ unless $tablestats[1]; # prevent divide by zero
+			my $statline = (FIO::config('Table','withmedian') ? withMedian(\@tablestats,$watched,@scorelist) : withoutMedian(\@tablestats,$watched,@scorelist));
+			if (config('UI','statustabs') or 0) {
+				$snote->insert_to_page($page, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+			} else {
+				$snote->insert( Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+			}
+			push(@cumulativescores,@scorelist);
+			$cumulativestats[0] += $tablestats[0];
+			$cumulativestats[1] += $tablestats[1];
+			$cumulativestats[2] += $tablestats[2];
+			$cumulativestats[3] += $tablestats[3];
 		}
-		$::application->yield();
-#		$tablestats[4] = Common::median(\@scorelist,0);
-		# put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-		$tablestats[1]++ unless $tablestats[1]; # prevent divide by zero
-#printf("Titles: $tablestats[0] Mean score: %.2f Median score: %.2f Episodes watched: $tablestats[3]\n",($tablestats[2]/($tablestats[1]*10)),$tablestats[4]/10);
-printf("Titles: $tablestats[0] Mean score: %.2f $watched: $tablestats[3]\n",($tablestats[2]/($tablestats[1]*10)));
-		push(@cumulativescores,@scorelist);
-		$cumulativestats[0] += $tablestats[0];
-		$cumulativestats[1] += $tablestats[1];
-		$cumulativestats[2] += $tablestats[2];
-		$cumulativestats[3] += $tablestats[3];
 	}
 	$::application->yield();
-#	$cumulativestats[4] = Common::median(\@cumulativescores,0);
-	$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
-#printf("Total: Titles: $cumulativestats[0] Mean score: %.2f Median score: %.2f Episodes watched: $cumulativestats[3]\n",($cumulativestats[2]/($cumulativestats[1]*10)),$cumulativestats[4]/10);
-printf("Total: Titles: $cumulativestats[0] Mean score: %.2f $watched: $cumulativestats[3]\n",($cumulativestats[2]/($cumulativestats[1]*10)));
+	if (FIO::config('Table','statsummary')) {
+		$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
+		my $statline = (FIO::config('Table','withmedian') ? withMedian(\@cumulativestats,$watched,@cumulativescores) : withoutMedian(\@cumulativestats,$watched,@cumulativescores));
+		$$gui{tabbar}->insert_to_page($index, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+	}
+#	$target->enabled(1);
+#	$snote->show();
 }
 print ".";
+
+sub withMedian {
+	my ($a,$watched,@list) = @_;
+	$$a[4] = Common::median(\@list,0);
+	my $var = sprintf("Titles: $$a[0] Mean score: %.2f Median score: %.2f $watched: $$a[3]\n",($$a[2]/($$a[1]*10)),$$a[4]/10);
+
+}
+
+sub withoutMedian {
+	my ($a,$watched) = @_;
+	my $var = sprintf("Titles: $$a[0] Mean score: %.2f $watched: $$a[3]\n",($$a[2]/($$a[1]*10)));
+}
+
 
 sub getGUI {
 	unless (defined keys %windowset) { createMainWin(); }
@@ -528,6 +552,7 @@ sub populateMainWin {
 		elsif (/rec/) { push(@tabtexts,(config('Custom',$_) or "Recent")); }
 		else { push(@tabtexts,"Unknown"); }
 	}
+	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 0, }, valign => ta::Center, alignment => ta::Center, font => applyFont('welcomehead'), autoHeight => 1, );
 	my $note = Prima::TabbedNotebook->create(
 		owner => getGUI("mainWin"),
 		style => tns::Simple,
@@ -544,6 +569,7 @@ sub populateMainWin {
 	}
 	$note->pageIndex(0);
 	$note->show();
+	$waiter->destroy();
 	$$gui{status}->text("Ready.");
 }
 print ".";

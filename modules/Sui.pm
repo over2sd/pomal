@@ -22,9 +22,11 @@ my %data = (
 #		series_extra => ['alttitle',], #		pub_extra => ['alttitle',] #		episode => [], #		volume => [], #		chapter => [],
 			series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
 			pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note']
+			extsid => ['mal','hum'],
+			extpid => ['mal','hum'],
 			# episode, volume, chapter?
 		},
-	tableids => { series => "sid", pub => "pid" },
+	tableids => { series => "sid", pub => "pid", extsid => "sid", extpid => "pid", },
 	objectionablecontent => [ 'nudity','violence','language','sex','brutality','blasphemy','horror','nihilism','theology','occult','superpowers','rape','fanservice','drugs','hentai','gambling','war','discrimination'],
 	disambiguations => {
 		tag => ["tag_(context1)","tag_(context2)"],
@@ -130,21 +132,21 @@ sub getOpts {
 		'076' => ['t',"Options dialog",'options'],
 
 		'077' => ['l',"Table",'Table'],
-		'080' => ['g',"Column Widths",'label'],
+		'078' => ['c',"Statistics summary",'statsummary'],
+		'079' => ['c',"Stats include median score",'withmedian'],
+		'07f' => ['g',"Column Widths",'label'],
+		'080' => ['n',"Row #s",'t1c0',21,0,800,1,10],
 		'081' => ['n',"Rewatch/Move",'t1c1',140,0,800,1,10],
 		'082' => ['n',"Progress",'t1c2',105,0,800,1,10],
 		'083' => ['n',"Score",'t1c3',51,0,800,1,10],
-		'08f' => ['n',"Row #s",'t1c0',21,0,800,1,10],
 #		'084' => ['n',"Tags",'t1c4',60,0,800,1,10],
 #		'085' => ['n',"Column 5",'t1c5',0,0,800,1,10],
 #		'086' => ['n',"View",'t1c6',60,0,800,1,10],
 		'08a' => ['g',"Rows:",'label'],
 		'08b' => ['n',"Height",'t1rowheight',60,0,600,1,10],
-#		'078' => ['g',"Table",'label'],
-#		'079' => ['n',"Table Width",'twidth',640,600,8196,10,100],
 
 		'ff0' => ['l',"Debug Options",'Debug'],
-		'ff1' => ['c',"Colored terminal output",'termcolors']
+		'ff1' => ['c',"Colored terminal output",'termcolors'],
 	);
 	return %opts;
 }

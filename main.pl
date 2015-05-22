@@ -5,6 +5,9 @@ use warnings;
 use diagnostics;
 use utf8;
 
+#my $count = shift || 1;
+#sub getCount { return $count; }
+
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;

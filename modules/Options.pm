@@ -146,7 +146,7 @@ sub optChange {
 			$value = $caller->get_font_name();
 		} elsif (/RadioButton/) {
 			($caller->get_active() ? $value = $rbval : return );
-		} elsif (/XButtons/) {
+		} elsif (/XButtons/ or /MaskGroup/) {
 			$value = $caller->value;
 		} elsif (/SpinEdit/ or /SpinButton/ or /AltSpinButton/) {
 			$value = $caller->value;
