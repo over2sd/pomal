@@ -107,7 +107,7 @@ sub fromMAL {
 		}
 		$loop = $xml->read();
 		$i++; # TODO: remove this temporary limiter
-		if ($i > 25) { $loop = 0; } # to shorten test runs
+		if ($i > 30) { $loop = 0; } # to shorten test runs
 	}
 	$|--;
 	$$gui{status}->text("Successfully imported $storecount titles to database ($upcount updated)...");

@@ -50,6 +50,9 @@ sub validateConfig { # sets config values for missing required defaults
 			config('Main',$_,$defaults{$_});
 		}
 	}
+	unless (config('Font','bighead')) {
+		config('Font','bighead',"Arial 24");
+	}
 }
 print ".";
 
@@ -103,7 +106,7 @@ sub getFileName {
 	if ($filebox->execute()) {
 		$filename = $filebox->fileName;
 	} else {
-		$$guir{status}->text("Import cancelled.");
+		$$guir{status}->text("$oktext cancelled.");
 	}
 	$filebox->destroy();
 	return $filename;

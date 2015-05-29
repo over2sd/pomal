@@ -104,7 +104,8 @@ user.
 sub insert {
 	my ($self,$class,@args) = @_;
 	my $child = $self->SUPER::insert($class,@args);
-	$child->pack(side => $profile{side});
+	$child->pack(side => $self{side});
+#	$self->prepArrow($child);
 	return $child;
 }
 
@@ -116,9 +117,9 @@ children to that side.
 =cut
 sub arrange {
 	my ($self,$newside) = @_;
-	$profile{side} = $newside if (defined $newside);
+	$self{side} = $newside if (defined $newside);
 	foreach ($self->get_widgets()) {
-		$_->pack(side => $profile{side});
+		$_->pack(side => $self{side});
 	}
 }
 
@@ -1054,16 +1055,15 @@ sub createMainWin {
 		unless (defined $$position[0] and defined $$position[1]) { $position = []; }
 	}
 	$w = ($w or 800); $h = ($h or 500);
-print "My placement: $w x $h @ $$position[0],$$position[1]\n";
 	my $window = Prima::MainWindow->new(
 		text => (FIO::config('Custom','program') or "$program") . " v.$version",
 		size => [$w,$h],
 		origin => $position,
 		font => applyFont('body'),
 	);
-	$window->onClose(sub { FlexSQL::closeDB(); savePos($window);}),
+	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; } );
 	$windowset{mainWin} = $window;
-	$window->set( menuItems => PGUI::buildMenus($window));
+	$window->set( menuItems => PGUI::buildMenus(\%windowset));
 	$windowset{menu} = $window->menu();
 	#pack it all into the hash for main program use
 	$windowset{status} = getStatus($window);

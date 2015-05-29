@@ -10,15 +10,19 @@ use PGK qw( VBox Table Pdie Pwait applyFont getGUI );
 use FIO qw( config );
 
 sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
-	my $self = shift;
+	my $gui = shift;
 	my $menus = [
 		[ '~File' => [
 			['~Import', 'Ctrl-O', '^O', sub { importGUI() } ],
 			['~Export', sub { message('export!') }],
 #			['~Synchronize', 'Ctrl-S', '^S', sub { message('synch!') }],
-			['~Preferences', sub { return callOptBox(getGUI()); }],
+			['~Preferences', sub { return callOptBox($gui); }],
 			[],
-			['Close', 'Ctrl-W', km::Ctrl | ord('W'), sub { $self->close() } ],
+			['Close', 'Ctrl-W', km::Ctrl | ord('W'), sub { $$gui{mainWin}->close() } ],
+		]],
+		[ '~Add' => [
+			['~Anime',sub { addTitle($gui,'ani') }],
+			['~Manga',sub { addTitle($gui,'man') }],
 		]],
 		[ '~Help' => [
 			['~About',sub { message('About!') }], #\&aboutBox],
@@ -504,8 +508,9 @@ sub populateMainWin {
 		elsif (/rec/) { push(@tabtexts,(config('Custom',$_) or "Recent")); }
 		else { push(@tabtexts,"Unknown"); }
 	}
-	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 0, }, valign => ta::Center, alignment => ta::Center, font => applyFont('welcomehead'), autoHeight => 1, );
-	$$gui{questionparent} = $$gui{mainWin}->insert( VBox => name => 'qparent' );
+	$$gui{questionparent} = $$gui{mainWin}->insert( VBox => name => 'qparent', place => { fill => 'both', expand => 0, relx => 0, rely => 1, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
+	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 1, }, valign => ta::Center, alignment => ta::Center, font => applyFont('bighead'), autoHeight => 1, );
+	$::application->yield();
 	my $note = Prima::TabbedNotebook->create(
 		owner => getGUI('mainWin'),
 		style => tns::Simple,
@@ -709,6 +714,33 @@ sub buildTitleRows {
 #			$view->width($widths[6]) if (defined $widths[6] and $widths[6] > 0);
 	} # end foreach my $k (@keys)
 #	return @rows;
+}
+print ".";
+
+sub addTitle {
+	my ($gui,$tab) = @_;
+	my $dbh = FlexSQL::getDB();
+	unless ($tab eq 'man' or $tab eq 'ani') { print "[E] addTitle does not recognize '$tab' as a valid option.\n"; return; }
+	my $box = $$gui{questionparent};
+	$$gui{tabbar}->hide();
+	$box->empty();
+	my $tabstr = ($tab eq 'man' ? ' manga' : 'n anime');
+	$box->insert( Label => text => "Add a$tabstr title", font => applyFont('bighead'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+	my $titlestat = $box->insert( XButtons => name => "status", pack => {fill=>'none',expand=>0});
+	$titlestat->arrange('left');
+	my @presets = (0,Sui::getStatHash($tab));
+	$titlestat-> build("Status:",@presets);
+	my $name = PGK::labelBox($box,"Title:",'name','h',boxex => 0,boxfill => 'x')->insert( InputLine =>
+		text => "", name => 'sname', pack => {fill => 'x', expand => 0,});
+	$box->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
+#	onClick => sub {
+		# hashify
+		# prepare
+		# submit
+#		$$gui{tabbar}->show();
+		# display
+#		$box->empty();
+#	}
 }
 print ".";
 

@@ -138,6 +138,7 @@ sub makeTables { # used for first run
 		my $error = doQuery(2,$dbh,$st);
 		$widget->text("Making tables... table " . $i + 1 . "/$tot" . ($error ? ": $st\n" : "" )) if defined $widget;
 		print ".";
+		$::application->yield();
 		if($error) { return undef,$error; }
 	}
 	return $dbh,"OK";
@@ -281,7 +282,7 @@ print ".";
 
 sub getNewID {
 	my ($dbh,$table,$placeholder1,$placeholder2) = @_;
-	unless (defined $placeholder1 and defined $placeholder2) { return 2,"ERROR","No placeholder values given to newID!"; }
+	unless (defined $placeholder1 and defined $placeholder2) { return 2,"ERROR","No placeholder values given to getNewID!"; }
 	my %tablekeys = %{ Sui::passData('tablekeys') };
 	my %ids = %{ Sui::passData('tableids') };
 	return 1,"ERROR","Invalid and reserved table name 'undef' could not be used." if $table eq 'undef'; # Very funny, smarty pants DBA. Use a real name for your table.

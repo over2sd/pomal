@@ -11,7 +11,7 @@ sub getCount { return $count; }
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.07prealpha";
+my $version = "0.1.08prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
@@ -50,7 +50,7 @@ require FlexSQL;
 require PGUI;
 require Options;
 
-print "\nStarting GUI...\n";
+print "\n[I] Starting GUI...\n";
 my $gui = PGK::createMainWin("PersonalOfflineManga/AnimeList",$version);
 if ($remdb eq "yesIamSure") { # Debugging switch -x
 	unless (FIO::config('DB','type') eq "L") {

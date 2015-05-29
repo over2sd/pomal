@@ -122,6 +122,7 @@ sub getOpts {
 		'055' => ['f',"Special font/size: ",'special'], # for lack of a better term
 		'052' => ['f',"Progress font/size: ",'progress'],
 		'053' => ['f',"Progress Button font/size: ",'progbut'],
+		'054' => ['f',"Major heading font/size: ",'bighead'],
 
 		'070' => ['l',"Custom Text",'Custom'],
 		'072' => ['t',"Anime:",'ani'],
