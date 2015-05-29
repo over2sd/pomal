@@ -33,6 +33,7 @@ sub getDB {
 		my $password = shift || '';
 		my $username = shift || whoAmI();
 		# connect to the database
+# print "[I] Connecting to $base\@$host as $username with " . ($password eq '' ? "no" : "a") . " password given.\n";
 		my $flags = { mysql_enable_utf8mb4 => 1 };
 		if ($password ne '') {
 			$dbh = DBI->connect("DBI:mysql:$base:$host",$username,$password,$flags) ||
@@ -119,13 +120,15 @@ sub makeDB {
 print ".";
 
 sub makeTables { # used for first run
-	my ($dbh) = shift; # same prep work as regular connection...
+	my ($dbh,$widget) = @_;
 	print "Creating tables...";
 	open(TABDEF, "<$DBNAME.msq"); # open table definition file
 	my @cmds = <TABDEF>;
-	print "Importing " . scalar @cmds . " lines.";
+	my $tot = scalar @cmds;
+	print "\n[I] Importing $tot lines.";
 	foreach my $i (0 .. $#cmds) {
 		my $st = $cmds[$i];
+#print $i + 1 . "$st\n";
 		if ('SQLite' eq $dbh->{Driver}->{Name}) {
 			next if ($st =~ m/^USE/); # SQLite doesn't (properly) support USE? WTH
 			$st =~ s/ UNSIGNED//g; # ...or unsigned?
@@ -133,7 +136,7 @@ sub makeTables { # used for first run
 			$st =~ s/ AUTO_INCREMENT/ AUTOINCREMENT/g; #...or auto_increment?
 		}
 		my $error = doQuery(2,$dbh,$st);
-#		print $i + 1 . ($error ? ": $st\n" : "" );
+		$widget->text("Making tables... table " . $i + 1 . "/$tot" . ($error ? ": $st\n" : "" )) if defined $widget;
 		print ".";
 		if($error) { return undef,$error; }
 	}
@@ -145,7 +148,7 @@ print ".";
 sub doQuery {
 	my ($qtype,$dbh,$statement,@parms) = @_;
 	my $realq;
-#	print "Received '$statement' ",join(',',@parms),"\n";
+	print "Received '$statement' ",join(',',@parms),"\n" if (FIO::config('Debug','v') > 5);
 	unless (defined $dbh) {
 		Pdie("Baka! Send me a database, if you want data.");
 	}
@@ -238,8 +241,10 @@ sub prepareFromHash {
 		my $valstxt = "VALUES (";
 		$cmd = "INSERT INTO $cmd (";
 		my @cols;
-		push(@parms,$vals{$idcol});
-		push(@cols,$idcol);
+		if ($$extra{idneeded}) { # for storing non autoincrement IDs
+			push(@parms,$vals{$idcol});
+			push(@cols,$idcol);
+		}
 		print "$incolor";
 		foreach (keys %vals) {
 			unless (Common::findIn($_,@keys) < 0) {
@@ -256,6 +261,7 @@ sub prepareFromHash {
 	} else {
 		$cmd = "UPDATE $cmd SET ";
 		print "$upcolor";
+		shift @keys if $$extras{rem1stcol}; # some updates do not use the first key
 		foreach (keys %vals) {
 			unless (Common::findIn($_,@keys) < 0) {
 				$cmd = "$cmd$_=?, "; # columns
@@ -273,50 +279,28 @@ sub prepareFromHash {
 }
 print ".";
 
-sub addTags {
-	my ($dbh,$key,$sid,@taglist) = @_;
-	my $error = -1;
-	unless (length "@taglist") { return 0; } # if no tags, no error
-	unless (scalar @taglist > 1) { # see if taglist is a real array or just csv
-		@taglist = split(/,/,"@taglist"); # if csv, split it into a real array
+sub getNewID {
+	my ($dbh,$table,$placeholder1,$placeholder2) = @_;
+	unless (defined $placeholder1 and defined $placeholder2) { return 2,"ERROR","No placeholder values given to newID!"; }
+	my %tablekeys = %{ Sui::passData('tablekeys') };
+	my %ids = %{ Sui::passData('tableids') };
+	return 1,"ERROR","Invalid and reserved table name 'undef' could not be used." if $table eq 'undef'; # Very funny, smarty pants DBA. Use a real name for your table.
+	$table = 'undef' unless defined $table;
+	$table =~ s/`//g; # in case user passed "safe" table name.
+	my $cmd = "bogus"; # start by assuming table name is bogus vv
+	foreach (keys %ids) { $cmd = $_ if $_ eq $table; } # ^^ If this is a valid table name worthy of being passed to SQL engine, it must be in the list we use to find IDs.
+	if ($cmd eq "bogus") { return 1,"ERROR","Bogus table name $table passed to getNewID"; }
+	my $idcol = $ids{$table}; # we just made sure this would work.
+	my @keys = @{$tablekeys{$table}};
+	$cmd = "INSERT INTO $table ($keys[0],$keys[1]) VALUES (?,?);";
+	my @parms = ($placeholder1,$placeholder2);
+	$error = doQuery(2,$dbh,$cmd,@parms);
+	if ($error == 1) { # successfully added 1 row
+		$cmd = "SELECT $idcol FROM $table WHERE $keys[0]=? AND $keys[1]=?";
+		return FlexSQL::doQuery(0,$dbh,$cmd,@parms);
+	} else {
+die "An unhandled error $error occurred during getNewID.\n"; # Replace with actual error handling.
 	}
-	foreach my $t (@taglist) { # foreach tag
-		$t =~ s/^\s+//; # trim leading space
-		$t =~ s/\s+$//; # trim trailing space
-		if (config('ImEx','filterinput')) { $t = Common::disambig($t); } # if so configured, check tag against ambiguity table
-		my $st = "SELECT tid FROM tag WHERE text=?";
-		my $result = doQuery(0,$dbh,$st,$t); # check to see if the tag exists in the tag table
-		unless ($result =~ m/^[0-9]+$/) { # if it doesn't, add it
-#			print "Found tag: $result\n";
-			my $cmd = "INSERT INTO tag (text) VALUES (?)";
-			$result = doQuery(2,$dbh,$cmd,$t);
-			unless ($result == 1) { warn "Unexpected result: $result " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag parser: $result") : next ); }
-			$result = doQuery(0,$dbh,$st,$t);
-			if (not defined $result or $result eq "") { warn "Unexpected result ($result) after inserting tag: " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag tie: $result") : next ); }
-		}
-		my $id = $result; # assign its ID to a variable
-		$st = "SELECT tid FROM tags WHERE xid=? AND titletype=?";
-		my @parms = ($sid,$key);
-		$result = doQuery(4,$dbh,$st,@parms);
-		my $found = 0;
-		foreach (@$result) {
-			my @a = @$_;
-			if ($a[0] == $id) { $found = 1; }
-		}
-		unless ($found) {
-			my $cmd = "INSERT INTO tags (tid,xid,titletype) VALUES (?,?,?)"; # add a line in the tags table linking this tag with the series id in $sid and the key indicating the title type
-			unshift @parms, $id;
-			$result = doQuery(2,$dbh,$cmd,@parms);
-			# TODO: Error handling here
-			$error = ($result == 1 ? 0 : 1); # prepare return result
-			if (0) { print "Result of inserting tag '$t' ($id) for property $key:$sid is '$result'\n"; }
-		} else {
-			if (0) { print "Tag '$t' ($id) already associated with $key:$sid. Skipping.\n"; }
-			else { print "="; }
-			$error = 0;
-		}
-	}
-	return $error; # return happiness
 }
 print ".";
 

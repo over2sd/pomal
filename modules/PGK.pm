@@ -1047,19 +1047,23 @@ Returns a HASREF.
 my %windowset;
 sub createMainWin {
 	my ($program,$version,$w,$h) = @_;
+	my $position;
+	if (FIO::config('Main','savepos')) {
+		unless ($w and $h) { $w = ($w or FIO::config('Main','width') or 800); $h = ($h or FIO::config('Main','height') or 500); }
+		$position = [(FIO::config('Main','left') or undef),(FIO::config('Main','top') or undef)];
+		unless (defined $$position[0] and defined $$position[1]) { $position = []; }
+	}
+	$w = ($w or 800); $h = ($h or 500);
+print "My placement: $w x $h @ $$position[0],$$position[1]\n";
 	my $window = Prima::MainWindow->new(
 		text => (FIO::config('Custom','program') or "$program") . " v.$version",
-		size => [($w or 800),($h or 500)],
-		onClose => sub { FlexSQL::closeDB(); },
+		size => [$w,$h],
+		origin => $position,
 		font => applyFont('body'),
 	);
-	if (FIO::config('Main','savepos')) {
-		unless ($w and $h) { $w = FIO::config('Main','width'); $h = FIO::config('Main','height'); }
-		$window->size($w,$h);
-		$window->place( x => (FIO::config('Main','left') or 40), rely => 1, y=> -(FIO::config('Main','top') or 30), anchor => "nw");
-	}
+	$window->onClose(sub { FlexSQL::closeDB(); savePos($window);}),
 	$windowset{mainWin} = $window;
-	$window->set( menuItems => PGUI::buildMenus(\%windowset));
+	$window->set( menuItems => PGUI::buildMenus($window));
 	$windowset{menu} = $window->menu();
 	#pack it all into the hash for main program use
 	$windowset{status} = getStatus($window);
@@ -1274,15 +1278,15 @@ sub startwithDB {
 		$box->insert( Label => text => "Establishing database connection. Please wait...");
 		my ($base,$uname,$host,$pw) = (config('DB','type',undef),config('DB','user',undef),config('DB','host',undef),config('DB','password',undef));
 		unless ($pw and $base eq 'M') { # if no password needed:
+			my ($dbh,$error) = loadDB($base,$host,'',$uname,$text,$box->insert( Label => text => ""));
 			$box->destroy();
-			my ($dbh,$error) = loadDB($base,$host,'',$uname,$text);
 			unless (defined $dbh) { Common::errorOut('PGK::loadDB',$error); return $error; }
 			PGUI::populateMainWin($dbh,$gui);
 		} else { # ask for password:
 			my $passrow = labelBox($box,"Enter password for $uname\@$host:",'pass','h');
 			my $passwd = $passrow->insert( InputLine => text => '', writeOnly => 1,);
 			$passrow->insert( Button => text => "Send", onClick => sub {
-				my ($dbh,$error) = loadDB($base,$host,$passwd->text,$uname,$text);
+				my ($dbh,$error) = loadDB($base,$host,$passwd->text,$uname,$text,$box->insert( Label => text => ""));
 				$box->destroy();
 				unless (defined $dbh) { Common::errorOut('PGK::loadDB',$error); return $error; }
 				PGUI::populateMainWin($dbh,$gui);
@@ -1303,7 +1307,7 @@ Returns database HANDLE,0 on success.
 
 =cut
 sub loadDB {
-	my ($base,$host,$passwd,$uname,$text) = @_;
+	my ($base,$host,$passwd,$uname,$text,$widget) = @_;
 	$text->push("Connecting to database...");
 	my ($dbh,$error,$errstr) = FlexSQL::getDB($base,$host,Sui::passData('dbname'),$passwd,$uname);
 	unless (defined $dbh) { # error handling
@@ -1325,7 +1329,7 @@ sub loadDB {
 	foreach (keys %{ Sui::passData('tablekeys') }) {
 		unless (FlexSQL::table_exists($dbh,$_)) {
 			$text->push("Attempting to initialize database tables...");
-			($dbh, $error) = FlexSQL::makeTables($dbh);
+			($dbh, $error) = FlexSQL::makeTables($dbh,$widget);
 			return (undef,2) unless (defined $dbh);
 		}
 	}

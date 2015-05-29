@@ -13,9 +13,8 @@ print ".";
 
 sub getTags {
 	my ($table) = @_;
-	my %tags;
 	for ($table) {
-		if (/MALa/) { %tags = (
+		if (/MALa/) { return (
 					foundkey => 'user_anime_found',
 					totkey => 'user_total_anime',
 					marker => "A",
@@ -45,9 +44,10 @@ sub getTags {
 					s_rewa => "my_rewatching",
 					lastwatched => "my_watched_episodes",
 					lastrewatched => "my_rewatching_ep",
-					_uoi => "update_on_import"
+					_uoi => "update_on_import",
+					idtable => "extsid",
 				);
-			} elsif (/MALm/) { %tags = (
+			} elsif (/MALm/) { return (
 					foundkey => 'user_manga_found',
 					totkey => 'user_total_manga',
 					marker => "M",
@@ -72,13 +72,24 @@ sub getTags {
 					note => "my_comments",
 					readtimes => "my_times_read",
 					_reval => "my_reread_value",
-					_uoi => "update_on_import"
-				);	
+					_uoi => "update_on_import",
+					idtable => "extpid",
+				);
 			}
 	}
-	return %tags;
+	return ();
 }
 print ".";
+
+sub getFileFilters {
+	return [
+			['MAL title list (*.xml,*.xml.gz)' => '*.xml;*.xml.gz'],
+			['Uncompressed MAL title list (*.xml)' => '*.xml'],
+			['Compressed MAL title list (*.xml.gz)' => '*.xml.gz'],
+			['Hummingbird title list (*.json)' => '*.json'],
+			['Comma Separated Values (*.csv)' => '*.csv'],
+		];
+};
 
 print " OK; ";
 1;

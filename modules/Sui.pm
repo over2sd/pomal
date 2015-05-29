@@ -21,7 +21,7 @@ my %data = (
 	tablekeys => {
 #		series_extra => ['alttitle',], #		pub_extra => ['alttitle',] #		episode => [], #		volume => [], #		chapter => [],
 			series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
-			pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note']
+			pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note'],
 			extsid => ['mal','hum'],
 			extpid => ['mal','hum'],
 			# episode, volume, chapter?
@@ -152,6 +152,91 @@ sub getOpts {
 }
 print ".";
 
+sub getRealID {
+	my ($dbh,$target,$column,$table,$data) = @_;
+	my $safetable = $dbh->quote_identifier($table);
+	my $ids = passData('tableids');
+	my @keys = @{ passData('tablekeys')->{$table} or [] };
+	my $idkey = $$ids{$table};
+	my $safeid = $dbh->quote_identifier($idkey);
+	$column = $dbh->quote_identifier($column);
+	$$data{extid} = $$data{$idkey};
+	unless (defined $$data{extid}) {
+		die "[E] getRealID couldn't find external ID#!\n";
+	}
+	my $idtable = 'bogus';
+	$idtable = 'extsid' if $table eq 'series';
+	$idtable = 'extpid' if $table eq 'pub';
+	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
+	my $idtable = $dbh->quote_identifier($idtable);
+	if (FlexSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $idtable WHERE $column=?",$$data{extid})) { # check to see if sid already present in DB
+		my $idnum = FlexSQL::doQuery(0,$dbh,"SELECT sid FROM $idtable WHERE $column=?",$$data{extid});
+		print "[I] Found existing ID#$idnum..." if FIO::config('Debug','v') > 4;
+		return (1,$idnum);
+	} else {
+# TODO: Before creating a new row, check for name to see if it was imported from another tracking site
+# $data{$name} =~ m/([Tt]he )?([A-Za-z\w]+)/;
+# $likename = $2;
+# print "($1) '$2' ";
+# $target->insert( Label => text => "Is one of the following shows the same as $data{$name}?" );
+# yesnoXB($target);
+		my $idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
+		my $err = FlexSQL::doQuery(2,$dbh,"INSERT INTO $idtable ($safeid,$column) VALUES (?,?)",$idnum,$$data{extid});
+		die "Error: $err" if $error;
+		print "[I] Gave new ID#$idnum to MAL title#$$data{extid}. " if FIO::config('Debug','v') > 4;
+		return (0,$idnum);
+	}
+		#	my ($found,$realid) = Sui::getRealID($dbh,$table,\%data);
+}
+print ".";
+
+sub addTags {
+	my ($dbh,$key,$sid,@taglist) = @_;
+	my $error = -1;
+	unless (length "@taglist") { return 0; } # if no tags, no error
+	unless (scalar @taglist > 1) { # see if taglist is a real array or just csv
+		@taglist = split(/,/,"@taglist"); # if csv, split it into a real array
+	}
+	foreach my $t (@taglist) { # foreach tag
+		$t =~ s/^\s+//; # trim leading space
+		$t =~ s/\s+$//; # trim trailing space
+		if (FIO::config('ImEx','filterinput')) { $t = Common::disambig($t); } # if so configured, check tag against ambiguity table
+		my $st = "SELECT tid FROM tag WHERE text=?";
+		my $result = FlexSQL::doQuery(0,$dbh,$st,$t); # check to see if the tag exists in the tag table
+		unless ($result =~ m/^[0-9]+$/) { # if it doesn't, add it
+#			print "Found tag: $result\n";
+			my $cmd = "INSERT INTO tag (text) VALUES (?)";
+			$result = FlexSQL::doQuery(2,$dbh,$cmd,$t);
+			unless ($result == 1) { warn "Unexpected result: $result " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag parser: $result") : next ); }
+			$result = FlexSQL::doQuery(0,$dbh,$st,$t);
+			if (not defined $result or $result eq "") { warn "Unexpected result ($result) after inserting tag: " . $dbh->errstr; (config('Main','fatalerr') ? PGUI::Gtkdie(PGUI::getGUI(mainWin),"Error in tag tie: $result") : next ); }
+		}
+		my $id = $result; # assign its ID to a variable
+		$st = "SELECT tid FROM tags WHERE xid=? AND titletype=?";
+		my @parms = ($sid,$key);
+		$result = FlexSQL::doQuery(4,$dbh,$st,@parms);
+		my $found = 0;
+		foreach (@$result) {
+			my @a = @$_;
+			if ($a[0] == $id) { $found = 1; }
+		}
+		unless ($found) {
+			my $cmd = "INSERT INTO tags (tid,xid,titletype) VALUES (?,?,?)"; # add a line in the tags table linking this tag with the series id in $sid and the key indicating the title type
+			unshift @parms, $id;
+			$result = FlexSQL::doQuery(2,$dbh,$cmd,@parms);
+			# TODO: Error handling here
+			$error = ($result == 1 ? 0 : 1); # prepare return result
+			if (0) { print "Result of inserting tag '$t' ($id) for property $key:$sid is '$result'\n"; }
+		} else {
+			if (0) { print "Tag '$t' ($id) already associated with $key:$sid. Skipping.\n"; }
+			else { print "="; }
+			$error = 0;
+		}
+	}
+	return $error; # return happiness
+}
+print ".";
+
 sub getTableWidths {
 	my @list = ((FIO::config('Table','t1c0') or 20));
 	push(@list,(FIO::config('Table','t1c1') or 140));
@@ -162,5 +247,7 @@ sub getTableWidths {
 	push(@list,(FIO::config('Table','t1c6') or 0));
 	return @list;
 }
+print ".";
+
 print "OK; ";
 1;

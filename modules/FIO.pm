@@ -54,7 +54,10 @@ sub validateConfig { # sets config values for missing required defaults
 print ".";
 
 sub saveConf {
+	my $debug = $cfg->val('Debug','v',undef); # store the value of debug verbosity level
+	$cfg->setval('Debug','v',undef); # don't output the command-line option for verbosity
 	$cfg->RewriteConfig();
+	$cfg->setval('Debug','v',$debug); # put the option back, in case program is still running
 	$cfgread = 1; # If we're writing, I'll assume we have some values to use
 }
 print ".";
@@ -89,16 +92,11 @@ sub gz_decom {
 print ".";
 
 sub getFileName {
-	my ($caller,$parent,$guir,$title,$action,$oktext,%filter) = @_;
+	my ($caller,$parent,$guir,$title,$action,$oktext,$filter) = @_;
 	unless (defined $parent) { $parent = $$guir{mainWin}; }
 	$$guir{status}->push("Choosing file...");
 	my $filebox = Prima::OpenDialog->new(
-		filter => %filter,
-		filter => [
-			['MAL title list' => '*.xml;*.xml.gz'],
-			['Uncompressed MAL title list' => '*.xml'],
-			['Compressed MAL title list' => '*.xml.gz']
-		],
+		filter => $filter,
 		fileMustExist => 1
 	);
 	my $filename = undef;

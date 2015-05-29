@@ -12,7 +12,7 @@ print ".";
 
 sub importXML {
 	my ($dbh,$gui) = @_;
-	my $filetoopen = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose a file to import",'open',"Import","*.xml*");
+	my $filetoopen = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose a file to import",'open',"Import",External::getFileFilters());
 	my $res;
 	if (defined $filetoopen) {
 		PGUI::Pwait(1.5); # let the dialog box close before dominating the processor...
@@ -46,7 +46,7 @@ print ".";
 
 sub fromMAL {
 	$|++;
-	use XML::LibXML::Reader;
+	require XML::LibXML::Reader;
 	my ($fn,$dbh,$gui,$returndata) = @_;
 	my $xml = XML::LibXML::Reader->new(location => $fn)
 		or return "Cannot read $fn!";
@@ -91,14 +91,14 @@ sub fromMAL {
 				my $node = $xml->copyCurrentNode(1);
 				my ($updated,$error) = storeMAL($gui,$dbh,'series',$node,$termcolor,$anicol,\%info,%anitags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
-				if ($returndata) { push(@list,$res); }
+				if ($returndata) { push(@list,$updated); }
 				$loop = $xml->next();
 				print " ";
 			} elsif (/^manga$/) {
 				my $node = $xml->copyCurrentNode(1);
 				my ($updated,$error) = storeMAL($gui,$dbh,'pub',$node,$termcolor,$mancol,\%info,%mantags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
-				if ($returndata) { push(@list,$res); }
+				if ($returndata) { push(@list,$updated); }
 				$loop = $xml->next();
 				print " ";
 			} else {
@@ -136,19 +136,17 @@ sub storeMAL {
 		if (0) { print "Stat: $data{status} "; }
 	}
 	if ($returndata) {
-		return \%data;
+		return \%data,0;
 	} else {
 		unless (defined $dbh) {
-			$dbh = PomalSQL::getDB(); # attempt to pull existing DBH
+			$dbh = FlexSQL::getDB(); # attempt to pull existing DBH
 		}
 		unless (defined $dbh) { # if that failed, I have to die.
 			my $win = getGUI(mainWin);
 			dieWithErrorbox($win,"storeMAL was not passed a database handler!");
 		}
 		# prepare statement, parms
-		my $safetable = $dbh->quote_identifier($table);
-		my $safeid = $dbh->quote_identifier($tags{idkey});
-		my $found = PomalSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $safetable WHERE $safeid=?",$data{$tags{idkey}}); # check to see if sid already present in DB
+		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'mal',$table,\%data);
 		if($found) {
 			# config controls if user wants to update name and max episodes...
 			my $clobber = (config('Main','importdiffnames') or "never");
@@ -157,17 +155,18 @@ sub storeMAL {
 				$clobber = "never";
 			}
 			if ($clobber eq "never") {
-				delete $data{$tags{namekey}}; 
-				delete $data{$tags{partkey}}; 
+				delete $data{$tags{namekey}};
+				delete $data{$tags{partkey}};
 			}
 		}
+		$data{$tags{idkey}} = $realid;
 		$data{score} *= 10; # move from 10-point to 100-point scale
-		my ($error,$cmd,@parms) = PomalSQL::prepareFromHash(\%data,$table,$found);
-		if (1) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
+		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,$table,1,{idneeded => 1});
+		if ($error) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
 		# Insert/update row
-		$error = PomalSQL::doQuery(2,$dbh,$cmd,@parms);
+		$error = FlexSQL::doQuery(2,$dbh,$cmd,@parms);
 		# process tags and add them to the DB
-		$error = PomalSQL::addTags($dbh,substr($table,0,1),$data{$tags{idkey}},$data{$tags{tagkey}});
+		$error = Sui::addTags($dbh,substr($table,0,1),$data{$tags{idkey}},$data{$tags{tagkey}});
 	# TODO: make error code persistent and meaningfully combined from each called program
 	# if extra data mode is on:
 		# pull ID of inserted row (if not using import ID)

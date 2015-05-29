@@ -6,7 +6,7 @@ print __PACKAGE__;
 use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget);
 $::wantUnicodeInput = 1;
 
-use PGK qw( VBox Table Pdie Pwait applyFont );
+use PGK qw( VBox Table Pdie Pwait applyFont getGUI );
 use FIO qw( config );
 
 sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
@@ -201,30 +201,6 @@ sub convertColor {
 }
 print ".";
 
-my %windowset;
-
-sub createMainWin {
-	my ($version,$w,$h) = @_;
-	my $window = Prima::MainWindow->new(
-		text => (config('Custom','program') or "PersonalOfflineManga/AnimeList") . " v.$version",
-		size => [($w or 750),($h or 550)],
-	);
-	if (config('Main','savepos')) {
-		unless ($w and $h) { $w = config('Main','width'); $h = config('Main','height'); }
-		$window->size($w,$h);
-		$window->place( x => (config('Main','left') or 40), rely => 1, y=> -(config('Main','top') or 30), anchor => "nw");
-	}
-# This line does nothing apparent:
-#	if (defined config('Font','body')) { applyFont('body',$window); }
-	$window->set( menuItems => buildMenus($window));
-
-	#pack it all into the hash for main program use
-	$windowset{mainWin} = $window;
-	$windowset{status} = getStatus($window);
-	return \%windowset;
-}
-print ".";
-
 sub createSplash {
 	my $window = shift;
 	my $vb = $window->insert( VBox => name => "splashbox", pack => { anchor => "n", fill => 'x', expand => 0, relx => 0.5, rely => 0.5, padx => 5, pady => 5, }, );
@@ -365,35 +341,11 @@ sub withMedian {
 	my $var = sprintf("Titles: $$a[0] Mean score: %.2f Median score: %.2f $watched: $$a[3]\n",($$a[2]/($$a[1]*10)),$$a[4]/10);
 
 }
+print ".";
 
 sub withoutMedian {
 	my ($a,$watched) = @_;
 	my $var = sprintf("Titles: $$a[0] Mean score: %.2f $watched: $$a[3]\n",($$a[2]/($$a[1]*10)));
-}
-
-
-sub getGUI {
-	unless (defined keys %windowset) { createMainWin(); }
-	my $key = shift;
-	if (defined $key) {
-		if (exists $windowset{$key}) {
-			return $windowset{$key};
-		} else {
-			return undef;
-		}
-	}
-	return \%windowset;
-}
-print ".";
-
-my $status = undef;
-sub getStatus {
-	my $win = shift;
-	unless(defined $status) {
-		unless (defined $win) { $win = getGUI(); }
-		$status = StatusBar->new(owner => $win)->prepare();
-	}
-	return $status;
 }
 print ".";
 
@@ -406,11 +358,11 @@ print ".";
 
 sub importGUI {
 	use Import qw( importXML );
-	my $gui = getGUI();
+	my $gui = PGK::getGUI();
 	my $dbh = FlexSQL::getDB();
 	### Later, put selection here for type of import to make
 	# For now, just allowing import of MAL XML file
-	return Import::importXML($dbh,$gui);
+	PGK::refreshUI($gui,$dbh) unless(Import::importXML($dbh,$gui));
 }
 print ".";
 
@@ -532,7 +484,7 @@ sub populateMainWin {
 	if (defined $$gui{tabbar}) {
 		unless ($refresh) { warn "populateMainWin called twice without refresh flag"; return; }
 		$$gui{tabbar}->close(); # refresh
-	} 
+	}
 	# TODO: Refresh should check to see if there are existing objects (if conserving net traffic) and use those, if possible
 	# TODO: Refresh should be able to refresh just one of the tabs, say 'man', if importing Manga...
 	my %exargs;
@@ -553,8 +505,9 @@ sub populateMainWin {
 		else { push(@tabtexts,"Unknown"); }
 	}
 	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 0, }, valign => ta::Center, alignment => ta::Center, font => applyFont('welcomehead'), autoHeight => 1, );
+	$$gui{questionparent} = $$gui{mainWin}->insert( VBox => name => 'qparent' );
 	my $note = Prima::TabbedNotebook->create(
-		owner => getGUI("mainWin"),
+		owner => getGUI('mainWin'),
 		style => tns::Simple,
 		tabs => \@tabtexts,
 		name => 'SeriesTypes',

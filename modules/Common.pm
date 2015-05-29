@@ -238,12 +238,12 @@ my %errorcodelist;
 sub registerErrors {
 	my ($func,@errors) = @_;
 	$errorcodelist{$func} = ['',] unless defined $errorcodelist{$func}; # prepare if no codes on record.
-#	print "\n - Registering error codes for $func:"; # "\n";
+	print "\n - Registering error codes for $func:" if main::howVerbose() > 8; # "\n";
 	my ($col,$base) = (getColors(5),getColorsbyName('base'));
 	foreach (0 .. $#errors) {
 #		printf(" %d",$_ + 1); # "\t" . $_ + 1 . ": $errors[$_]\n";
 		$errorcodelist{$func}[$_ + 1] = $errors[$_];
-		print "$col-$base";
+		print "$col-$base" if main::howVerbose() > 6;
 	}
 #	print "\n";
 }
@@ -258,7 +258,7 @@ sub registerZero {
 	$errorcodelist{$func} = ['',] unless defined $errorcodelist{$func}; # prepare if no codes on record.
 	$errorcodelist{$func}[0] = $text;
 	my ($col,$base) = (getColors(6),getColorsbyName('base'));
-	print "$col+$base";
+	print "$col+$base" if main::howVerbose() > 6;
 }
 print ".";
 
