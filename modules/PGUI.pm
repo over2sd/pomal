@@ -717,6 +717,8 @@ sub buildTitleRows {
 }
 print ".";
 
+my $partmax = 2000; # TODO: make this an option
+
 sub addTitle {
 	my ($gui,$tab) = @_;
 	my $dbh = FlexSQL::getDB();
@@ -728,10 +730,36 @@ sub addTitle {
 	$box->insert( Label => text => "Add a$tabstr title", font => applyFont('bighead'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
 	my $titlestat = $box->insert( XButtons => name => "status", pack => {fill=>'none',expand=>0});
 	$titlestat->arrange('left');
-	my @presets = (0,Sui::getStatHash($tab));
+	my @presets = (0,Sui::getStatHash($tab),'rew',"Rewatching");
 	$titlestat-> build("Status:",@presets);
-	my $name = PGK::labelBox($box,"Title:",'name','h',boxex => 0,boxfill => 'x')->insert( InputLine =>
-		text => "", name => 'sname', pack => {fill => 'x', expand => 0,});
+	my $row0 = $box->insert( HBox => name => 'row0');
+	$row0->insert( Label => text => "Title", sizeMin => [150,20]);
+	$row0->insert( Label => text => "Episodes", sizeMin => [100,20]);
+	$row0->insert( Label => text => "Watched", sizeMin => [100,20]);
+	$row0->insert( Label => text => "Started", sizeMin => [100,20]);
+	$row0->insert( Label => text => "Ended", sizeMin => [100,20]);
+	my $row1 = $box->insert( HBox => name => 'row1');
+	my $name = $row1->insert( InputLine =>
+		text => "", name => 'sname', sizeMin => [150,20]);
+	my $episodes = $row1->insert( SpinEdit => value => 0, min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
+	my $lastwatched = $row1->insert( SpinEdit => value => 0, min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
+#	my $lastrewatched
+	my $started = $row1->insert( InputLine => text => '0000-00-00', sizeMin => [100,20]);
+	my $ended = $row1->insert( InputLine => text => '0000-00-00',sizeMin => [100,20]);
+	my $row2 = $box->insert( HBox => name => 'row2');
+	$row2->insert( Label => text => "Score", sizeMin => [100,20]);
+	$row2->insert( Label => text => "Seen", sizeMin => [100,20]);
+	my $row3 = $box->insert( HBox => name => 'row3');
+	my $score = $row3->insert( InputLine => text => '0', sizeMin => [100,20]);
+# seentimes should be enabled only if rewatching or completed.
+	my $seentimes = $row3->insert( SpinEdit => value => 0, min => 0, max => 100, step => 1, pageStep => 5, sizeMin => [100,20], enabled => 0, );
+$titlestat->onChange(sub { unless ($titlestat->value eq 'com' or $titlestat->value eq 'rew') { $seentimes->enabled(0); $seentimes->value(0); } else { $seentimes->enabled(1); } });
+	#my $content;
+	#my $rating;
+	my $note;
+	my $stype; # TV, ONA, etc.
+
+
 	$box->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
 #	onClick => sub {
 		# hashify

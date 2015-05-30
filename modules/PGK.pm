@@ -1048,19 +1048,19 @@ Returns a HASREF.
 my %windowset;
 sub createMainWin {
 	my ($program,$version,$w,$h) = @_;
-	my $position;
-	if (FIO::config('Main','savepos')) {
+	my $position = FIO::config('Main','savepos');
+	if ($position) {
 		unless ($w and $h) { $w = ($w or FIO::config('Main','width') or 800); $h = ($h or FIO::config('Main','height') or 500); }
-		$position = [(FIO::config('Main','left') or undef),(FIO::config('Main','top') or undef)];
-		unless (defined $$position[0] and defined $$position[1]) { $position = []; }
 	}
 	$w = ($w or 800); $h = ($h or 500);
 	my $window = Prima::MainWindow->new(
 		text => (FIO::config('Custom','program') or "$program") . " v.$version",
 		size => [$w,$h],
-		origin => $position,
 		font => applyFont('body'),
 	);
+	if ($position) {
+		$window->place( x => (FIO::config('Main','left') or 40), rely => 1, y=> -(FIO::config('Main','top') or 30), anchor => "nw");
+	}
 	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; } );
 	$windowset{mainWin} = $window;
 	$window->set( menuItems => PGUI::buildMenus(\%windowset));
