@@ -115,6 +115,7 @@ sub getOpts {
 		'041' => ['c',"Refresh pages when title is moved",'moveredraw'],
 ##		'042' => ['c',"Move to active when changing parts seen",'incmove'],
 		'043' => ['x',"Background for list tables",'listbg',"#EEF"],
+		'044' => ['n',"Shorten titles to this length",'titlelimit',30,15,300,1,10],
 
 		'050' => ['l',"Fonts",'Font'],
 		'054' => ['f',"Tab font/size: ",'label'],
@@ -170,7 +171,17 @@ sub getRealID {
 	$idtable = 'extpid' if $table eq 'pub';
 	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
 	my $idtable = $dbh->quote_identifier($idtable);
-	if (FlexSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $idtable WHERE $column=?",$$data{extid})) { # check to see if sid already present in DB
+	if ($column eq 'usr') {
+# TODO: Before creating a new row, check for name to see if it was imported from another tracking site
+# $data{$name} =~ m/([Tt]he )?([A-Za-z\w]+)/;
+# $likename = $2;
+# print "($1) '$2' ";
+# $target->insert( Label => text => "Is one of the following shows the same as $data{$name}?" );
+# yesnoXB($target);
+		my $idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
+		print "[I] Gave new ID#$idnum to user-entered title. " if FIO::config('Debug','v') > 4;
+		return (0,$idnum);
+	} elsif (FlexSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $idtable WHERE $column=?",$$data{extid})) { # check to see if sid already present in DB
 		my $idnum = FlexSQL::doQuery(0,$dbh,"SELECT sid FROM $idtable WHERE $column=?",$$data{extid});
 		print "[I] Found existing ID#$idnum..." if FIO::config('Debug','v') > 4;
 		return (1,$idnum);

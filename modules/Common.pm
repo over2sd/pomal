@@ -191,10 +191,9 @@ sub getAge {
 	$dob=~/([0-9]{4})-?([0-9]{2})-?([0-9]{2})/; # DATE field format from MySQL. May not work for other sources of date.
 	return undef unless (defined $1 and defined $2 and defined $3); # prevents a segfault if date sent with bad format
 	my @maxdays = (0,31,28,31,30,31,30,31,31,30,31,30,31);
-	my $leapday = ($2 eq '02' ? int($3) == 29 ? 1 : 0 : 0);
-	my $day = ($leapday ? 28 : int($3));
-	return undef if (int($2) > 12 or $day > $maxdays[int($2)]); # Prevents a segfault if date sent is out of bounds, like 9999-99-99
-	my $start = DateTime->new( year => $1, month => $2, day => $day);
+	$maxdays[2] = 29 if (($1%400 == 0) || ($1%4 == 0 && $1%100 != 0));
+	return undef if (int($2) > 12 or $3 > $maxdays[int($2)]); # Prevents a segfault if date sent is out of bounds, like 9999-99-99
+	my $start = DateTime->new( year => $1, month => $2, day => $3);
 	$start->add( days => 1 ) if $leapday;
 	my $end = DateTime->now;
 	my $age = $end - $start;
@@ -361,6 +360,12 @@ sub median {
 	} else {
 		return ($sortedscores[$midpoint] + $sortedscores[$midpoint-1])/2;
 	}
+}
+print ".";
+
+sub today {
+	my ($y,$m,$d) = (localtime)[5,4,3];
+	return sprintf('%d-%02d-%02d', $y+1900, $m+1, $d);
 }
 print ".";
 

@@ -360,6 +360,18 @@ sub getTabByCode { # for definitively finding page ID of recent, suggested tabs.
 }
 print ".";
 
+sub passTabByCode {
+	my ($code1,$code2) = shift;
+	my $tab = getTabByCode($code1);
+	print "Tab: $tab \n";
+	my $tabbar = PGK::getGUI('tabbar');
+	my @list = $tabbar->widgets_from_page($tab);
+	foreach (@list) {
+		print "\n$_ - " . ($_->name or "unnamed") . ": " . ($_->text or "no text") . "\n";
+	}
+}
+print ".";
+
 sub importGUI {
 	use Import qw( importXML );
 	my $gui = PGK::getGUI();
@@ -728,47 +740,90 @@ sub addTitle {
 	$box->empty();
 	my $tabstr = ($tab eq 'man' ? ' manga' : 'n anime');
 	$box->insert( Label => text => "Add a$tabstr title", font => applyFont('bighead'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+# status TINYINT DEFAULT 0,
 	my $titlestat = $box->insert( XButtons => name => "status", pack => {fill=>'none',expand=>0});
 	$titlestat->arrange('left');
 	my @presets = (0,Sui::getStatHash($tab),'rew',"Rewatching");
 	$titlestat-> build("Status:",@presets);
 	my $row0 = $box->insert( HBox => name => 'row0');
-	$row0->insert( Label => text => "Title", sizeMin => [150,20]);
+	$row0->insert( Label => text => "Title", sizeMin => [150,20], pack => { fill => 'x', expand => 0 },);
 	$row0->insert( Label => text => "Episodes", sizeMin => [100,20]);
 	$row0->insert( Label => text => "Watched", sizeMin => [100,20]);
-	$row0->insert( Label => text => "Started", sizeMin => [100,20]);
-	$row0->insert( Label => text => "Ended", sizeMin => [100,20]);
 	my $row1 = $box->insert( HBox => name => 'row1');
-	my $name = $row1->insert( InputLine =>
-		text => "", name => 'sname', sizeMin => [150,20]);
-	my $episodes = $row1->insert( SpinEdit => value => 0, min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
-	my $lastwatched = $row1->insert( SpinEdit => value => 0, min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
-#	my $lastrewatched
-	my $started = $row1->insert( InputLine => text => '0000-00-00', sizeMin => [100,20]);
-	my $ended = $row1->insert( InputLine => text => '0000-00-00',sizeMin => [100,20]);
+	my $name = $row1->insert( InputLine => text => "", name => 'sname', sizeMin => [150,20], hint => "The title of the anime", pack => { fill => 'x', expand => 0 },);
+	my $eps = $row1->insert( SpinEdit => value => 0, name => 'episodes', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
+# rename to lastrewatched if (completed or) rewatching
+	my $lastep = $row1->insert( SpinEdit => value => 0, name => 'lastwatched', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
 	my $row2 = $box->insert( HBox => name => 'row2');
-	$row2->insert( Label => text => "Score", sizeMin => [100,20]);
-	$row2->insert( Label => text => "Seen", sizeMin => [100,20]);
+	$row2->insert( Label => text => "Started", sizeMin => [150,20]);
+	$row2->insert( Label => text => "Ended", sizeMin => [150,20]);
 	my $row3 = $box->insert( HBox => name => 'row3');
-	my $score = $row3->insert( InputLine => text => '0', sizeMin => [100,20]);
+	my $started = PGK::insertDateWidget($row3,$$gui{mainWin},{name => 'started',default => Common::today(), });
+# ended DATE,
+	my $ended = PGK::insertDateWidget($row3,$$gui{mainWin},{name => 'ended',default => Common::today(), });
+# score TINYINT UNSIGNED,
+	my $row4 = $box->insert( HBox => name => 'row4');
+	$row4->insert( Label => text => "Score", sizeMin => [100,20]);
+	$row4->insert( Label => text => "Seen", sizeMin => [100,20]);
+	$row4->insert( Label => text => "Tags (comma separated)", sizeMin => [250,20]);
+	$row4->insert( Label => text => "Type", sizeMin => [50,20]);
+	my $row5 = $box->insert( HBox => name => 'row5');
+	my $score = $row5->insert( InputLine => name => 'score', text => '0', sizeMin => [100,20]);
 # seentimes should be enabled only if rewatching or completed.
-	my $seentimes = $row3->insert( SpinEdit => value => 0, min => 0, max => 100, step => 1, pageStep => 5, sizeMin => [100,20], enabled => 0, );
-$titlestat->onChange(sub { unless ($titlestat->value eq 'com' or $titlestat->value eq 'rew') { $seentimes->enabled(0); $seentimes->value(0); } else { $seentimes->enabled(1); } });
+# seentimes INT UNSIGNED DEFAULT 0,
+	my $seentimes = $row5->insert( SpinEdit => name => 'seentimes', value => 0, min => 0, max => 100, step => 1, pageStep => 5, sizeMin => [100,20], enabled => 0, );
+	$titlestat->onChange(sub { unless ($titlestat->value eq 'com' or $titlestat->value eq 'rew') { $seentimes->enabled(0); $seentimes->value(0); } else { $seentimes->enabled(1); } });
+# content INT(35) UNSIGNED,
 	#my $content;
+# rating TINYINT UNSIGNED,
 	#my $rating;
-	my $note;
-	my $stype; # TV, ONA, etc.
+# note VARCHAR(1000),
+	my $tags = $row5->insert( InputLine => name => 'tags', text => '', sizeMin => [250,20]);
+# stype VARCHAR(30)
+	my $stype = $row5->insert( InputLine => text => 'TV', sizeMin => [50,20]); # TV, ONA, etc.
+	my $row6 = $box->insert( HBox => name => 'row6');
+	$row6->insert( Label => text => "Notes", sizeMin => [500,20]);
+	my $row7 = $box->insert( HBox => name => 'row7');
+	my $note = $row7->insert( InputLine => name => 'notes', text => '', sizeMin => [500,20]);
 
-
-	$box->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
-#	onClick => sub {
-		# hashify
-		# prepare
-		# submit
-#		$$gui{tabbar}->show();
+	my $buttons = $box->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 1, });
+	$buttons->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
+	$buttons->insert( Button => text => "Add", onClick => sub {
+		return unless ($name->text ne '');
+		$_[0]->enabled(0);
+		my %data; # hashify
+		if ($titlestat eq 'com') {
+			$lastep->value = $eps->value;
+		}
+		foreach ($name, $started, $ended, $score, $stype, $note, $tags) {
+			$data{$_->name} = $_->text;
+		}
+		foreach ($eps, $seentimes, ) {
+			$data{$_->name} = $_->value;
+		}
+		if ($titlestat eq 'rew') {
+			$data{lastrewatched} = $lastep->value;
+			$data{lastwatched} = $eps->value;
+		}
+		$data{ended} = '0000-00-00' if ($data{ended} eq $data{started});
+		$data{score} = int($data{score}) * 10;
+		my %stats = Sui::getStatIndex();
+		$data{status} = $stats{$titlestat->value};
+		$data{sid} = -1;
+		my $tabid = passTabByCode('ani',$titlestat->value);
+print "Tab: $tabid\n";
+		
+die "\n";
+		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'usr','series',\%data);
+		$data{sid} = $realid;
+		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,'series',1,{idneeded => 1}); # prepare
+		if ($error) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
+		$error = FlexSQL::doQuery(2,$dbh,$cmd,@parms); # submit
+		$error = Sui::addTags($dbh,substr('series',0,1),$data{sid},$data{tags});
+		$$gui{tabbar}->show();
 		# display
-#		$box->empty();
-#	}
+		$box->empty();
+	}, );
 }
 print ".";
 

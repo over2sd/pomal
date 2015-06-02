@@ -1062,10 +1062,10 @@ sub createMainWin {
 		$window->place( x => (FIO::config('Main','left') or 40), rely => 1, y=> -(FIO::config('Main','top') or 30), anchor => "nw");
 	}
 	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; } );
+	#pack it all into the hash for main program use
 	$windowset{mainWin} = $window;
 	$window->set( menuItems => PGUI::buildMenus(\%windowset));
 	$windowset{menu} = $window->menu();
-	#pack it all into the hash for main program use
 	$windowset{status} = getStatus($window);
 	return \%windowset;
 }
@@ -1335,6 +1335,23 @@ sub loadDB {
 	}
 	$text->push("Done loading database.");
 	return $dbh,0;
+}
+print ".";
+
+sub insertDateWidget {
+	my ($target,$parent,$extra) = @_;
+	require Prima::Calendar;
+	my $smallbox = $target->insert( HBox => sizeMin => [150,18], sizeMax => [300,50], pack => { fill => ($$extra{boxfill} or 'none'), expand => ($$extra{boxex} or 0), });
+	my $calent = $smallbox->insert( InputLine => text => ($$extra{default} or '0000-00-00'), name => ($$extra{name} or 'imadate') );
+	my $calbut = $smallbox->insert( SpeedButton => name => ($$extra{buttonname} or 'showcal'), onClick => sub {
+		my $calwin = Prima::Dialog->create( size => [ 250, 275 ], owner => $parent);
+		my $cal = $calwin->insert( Calendar => useLocale => 0, onChange  => sub { $calent->text(sprintf("%04d-%02d-%02d",$_[0]->year + 1900, $_[0]->month + 1, $_[0]->day)); $calwin->close(); }, pack => { fill => 'both', expand => 1, side => 'top',}, sizeMin => [200,200],);
+		$cal->date_from_time( localtime );
+		$calwin->insert( SpeedButton => text => "Cancel", pack => { fill => 'x', side => 'bottom', expand => 0}, onClick => sub { $calwin->close(); }, );
+		$calwin->execute;
+		$calwin->destroy;
+	}, imageFile => 'modules/cal-icon.png', );
+	return $calent;
 }
 print ".";
 
