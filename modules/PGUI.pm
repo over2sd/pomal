@@ -633,10 +633,11 @@ sub buildTitleRows {
 		} else {
 			my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
 			my $pvbox = $row->insert( VBox => backColor => $backcolor);
-			my $pchabox = $pvbox->insert( HBox => backColor => $backcolor);
+			my $pchabox = $pvbox->insert( HBox => name => 'partbox', backColor => $backcolor);
 		# put in the number of watched/episodes (button) -- or chapters
 			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
 			my $pbut = $pchabox->insert( Label =>
+				name => 'partlabel',
 				text => $pprog,
 				pack => { expand => 1, fill => 'both', },
 					# link the button to a dialog asking for a new value
@@ -647,11 +648,11 @@ sub buildTitleRows {
 			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100) * 100;
 			# read config option and display percentage as either a label or a progress bar
 			if (config('UI','graphicprogress')) {
-				my $percb = $pvbox->insert( Gauge => size => [100,24], value => $rawperc, pack => { expand => 0, fill => 'none', },);
+				my $percb = $pvbox->insert( Gauge => name => 'partbar', size => [100,24], value => $rawperc, pack => { expand => 0, fill => 'none', },);
 				applyFont('progress',$percb);
 			} else {
 				my $pertxt = sprintf("%.2f%%",$rawperc);
-				my $percl = $pvbox->insert( Label => text => $pertxt);
+				my $percl = $pvbox->insert( Label => name => 'parttxt', text => $pertxt);
 				applyFont('progress',$percl);
 			}
 			# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
@@ -664,14 +665,15 @@ sub buildTitleRows {
 					autowidth => 1,
 					minSize => [10,10],
 					pack => { fill => "none", expand => 0, },
-#					onClick => sub { incrementPortion($pvbox,$updateform,$k,$updater); },
+					onClick => sub { incrementPortion($_[0],$pvbox,$updateform,$k,$updater); },
 				);
 			}
 			# if manga, put in the number of read/volumes (button)
 			if ($titletype eq 'pub') {
-				my $pvolbox = $pvbox->insert(HBox => backColor => $backcolor);
+				my $pvolbox = $pvbox->insert(HBox => name => 'volbox', backColor => $backcolor);
 				# put in the number of watched/episodes (button) -- or chapters
 				my $vbut = $pvolbox->insert( Label =>
+					name => 'vollabel',
 					text => "$record{lastreadv}/$record{volumes}"
 #					onClick => sub { askPortion($pvbox,$upform,$k,$updater); },
 				);
@@ -824,6 +826,139 @@ die "\n";
 		# display
 		$box->empty();
 	}, );
+}
+print ".";
+
+sub incrementPortion {
+	my ($caller,$target,$ttype,$titleid,$updater) = @_;
+	$caller->enabled(0);
+	my ($value,$max) = getPortions($updater,$ttype,$titleid);
+	unless (defined $max) {
+		sayBox(getGUI('mainWin'),"Error: Could not retrieve count max.");
+		$caller->enabled(1); # un-grey caller
+		return;
+	}
+	unless ($value >= $max) { $value++; } else { return; }
+	my $result = updatePortion($ttype,$titleid,$value,$updater); # call updatePortion
+	if ($result == 0) { warn "Oops!";
+	} else {
+		setProgress($target,$ttype,$value,$max);
+	}
+#	editPortion();
+	if (defined $value and $value == $max) { # ask to set complete if portions == total
+		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
+	} else {
+		$caller->enabled(1);
+	}
+}
+print ".";
+
+sub getPortions {
+	my ($updater,$uptype,$titleid) = @_;
+	my ($value,$max);
+	if ((config('DB','conserve') or 'mem') eq 'net') { # updating objects
+		my $sobj = $updater; # get object
+		# check if REF is for an Anime or Manga object
+		# use uptype for this?
+		# increment portion count
+		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
+	} else {
+		my $dbh = $updater;
+		unless (defined $dbh) {
+			$dbh = FlexSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			die "getPortions was not passed a database handler!";
+		}
+		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
+		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastreread FROM pub WHERE pid=?"; }
+		if ($uptype > 3) { $st = "SELECT volumes,lastreadv FROM pub WHERE pid=?"; }
+		if (0) { print "$st <= $titleid\n"; }
+		my $res = FlexSQL::doQuery(5,$dbh,$st,$titleid);
+		unless (defined $res) { return; } # no response: return
+		$value = @$res[($uptype % 2 ? 2 : 1 )];
+		$max = @$res[0];
+		if (0) { print "Count: ($value/$max)\n"; }
+	}
+	return $value,$max;
+}
+print ".";
+
+sub updatePortion {
+	my ($uptype,$titleid,$value,$uph) = @_;
+	if ((config('DB','conserve') or 'mem') eq 'net') { # updating objects
+		my $sobj = $uph; # get object
+		# check if REF is for an Anime or Manga object
+		# use uptype for this?
+		# increment portion count
+		warn "This is only a dream. I haven't really updated your objects, because this part hasn't been coded. Sorry. Smack the coder";
+	} else {
+		my $dbh = $uph;
+		unless (defined $dbh) {
+			$dbh = FlexSQL::getDB(); # attempt to pull existing DBH
+		}
+		unless (defined $dbh) { # if that failed, I have to die.
+			die "updatePortion was not passed a database handler!";
+		}
+		my @criteria = ( "lastwatched", "lastrewatched", "lastreadc", "lastrereadc", "lastreadv", "lastrereadv" );
+		my $data = {};
+		$$data{$criteria[$uptype]} = $value;
+		$$data{($uptype < 2 ? "sid" : "pid" )} = $titleid;
+		my ($error,$st,@parms) = FlexSQL::prepareFromHash($data,($uptype < 2 ? "series" : "pub" ),1);
+		unless ($error) {
+			my $res = FlexSQL::doQuery(2,$dbh,$st,@parms); # update SQL table
+			unless ($res == 1) { sayBox(getGUI('mainWin'),"Error: " . $dbh->errstr); return 0; } # rudimentary error message for now...
+		} else {
+			sayBox(getGUI('mainWin'),"Error: $st"); return 0;
+		}
+	}
+	return $value;
+}
+print ".";
+
+sub setProgress {
+	my ($target,$uptype,$value,$max) = @_;
+	# update the widgets that display the portion count
+	my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
+	my $pprog = $value . "/" . $max;
+	$txtar->text($pprog);
+	unless ($uptype > 3) {
+		my $rawperc = $value / ($max or $value * 2)  * 100;
+		if (ref($nutar) =~ m/Gauge/) { $nutar->value($rawperc); }
+		$nutar->text(sprintf("%.2f%%",$rawperc));
+	}
+}
+print ".";
+
+sub unpackProgBox {
+	my ($pbox,$getvols) = @_;
+	my ($countwidget,$percwidget,$pluswidget);
+	my @kids = $pbox->get_widgets();
+	foreach (@kids) {
+		if (ref($_) =~ m/Gauge/ and $_->name eq 'partbar') { $percwidget = $_; }
+		elsif (ref($_) =~ m/HBox/) {
+			if ($_->name eq 'partbox') {
+				my @a = $_->get_widgets();
+				$countwidget = $a[0] if ($a[0]->name eq 'partlabel'); # should be this one
+			} elsif ($_->name eq 'volbox') {
+				my @a = $_->get_widgets();
+				$countwidget = $a[0] if ($a[0]->name eq 'vollabel'); # should be this one
+			}
+		}
+		print $_ . " " . $_->name . "\n" if (FIO::config('Debug','v') or 0);
+	}
+	return $countwidget,$percwidget,$pluswidget;
+}
+print ".";
+
+sub editPortion {
+	my $defaults = shift;
+	my $qbox = getGUI('questionparent');
+	$qbox->show();
+	# If askdetails, show form for details
+	# If rateparts, show buttons to rate
+	$qbox->empty();
+	$qbox->hide();
 }
 print ".";
 

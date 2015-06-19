@@ -116,6 +116,8 @@ sub getOpts {
 ##		'042' => ['c',"Move to active when changing parts seen",'incmove'],
 		'043' => ['x',"Background for list tables",'listbg',"#EEF"],
 		'044' => ['n',"Shorten titles to this length",'titlelimit',30,15,300,1,10],
+		'045' => ['c',"Rate Portions of shows",'rateparts'],
+		'046' => ['c',"Store portion information",'askdetails'],
 
 		'050' => ['l',"Fonts",'Font'],
 		'054' => ['f',"Tab font/size: ",'label'],
@@ -260,6 +262,13 @@ sub getTableWidths {
 	return @list;
 }
 print ".";
+
+sub getDefaults {
+	return (
+		['UI','rateparts',1],
+		['UI','askdetails',1],
+	);
+}
 
 print "OK; ";
 1;

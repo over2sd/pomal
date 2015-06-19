@@ -1355,5 +1355,65 @@ sub insertDateWidget {
 }
 print ".";
 
+=item slidebox WINDOW TITLE TEXT PARAMETERS
+
+Makes and displays a dialog owned by WINDOW with TITLE in the titlebar,
+displaying TEXT and a slider.
+
+PARAMETERS:
+	value: Default Value
+	min: Minimum
+	max: Maximum
+	step: Step
+	page: Page Step
+	vert: Orientation is vertical?
+	circ: Make a knob, instead of a slide bar
+
+Returns a SCALAR value for the position of the slider.
+
+=cut
+sub slidebox {
+############### UNTESTED FUNCTION #################
+	my ($parent,$tibar,$display,$parms) = @_; # using an array allows single scalar question and preserved order of questions asked.
+#	print "Asking $numq questions...\n";
+	my $height = 75;
+	my $width = 400;
+	my $value = ($$parms{value} or 5);
+	$height = 200 if (($$parms{dir} or 'h') eq 'v');
+	$width = 100 if (($$parms{dir} or 'h') eq 'v');
+	my $askbox = Prima::Dialog->create(
+		centered => 1,
+		borderStyle => bs::Sizeable,
+		onTop => 1,
+		width => $width,
+		height => $height,
+		owner => $parent,
+		text => $tibar,
+		valignment => ta::Middle,
+		alignment => ta::Left,
+	);
+	my $buttons = mb::OkCancel;
+	my $vbox = $askbox->insert( VBox => autowidth => 1, pack => { fill => 'both', expand => 0, }, );
+	my $row = labelBox($vbox,($display or "Value"),"slidequestion",'v',boxfill=>'both', labfill => 'none', margin => 7, );
+	my $extras = {};
+#	$$extras{
+	my $ans = $row->insert(($$parms{circ} ? CircularSlider : Slider) =>
+		value => ($$parms{value} or 5),
+		min => ($$parms{min} or 0),
+		max => ($$parms{max} or 10),
+		step => ($$parms{step} or 1),
+		pageStep => ($$parms{page} or 3),
+		vertical => ($$parms{vert} or 0),
+		);
+	$ans->onChange(sub { $value = $ans->value; });
+	my $spacer = $vbox->insert( Label => text => " ", pack => { fill => 'both', expand => 1 }, );
+	my $fresh = Prima::MsgBox::insert_buttons( $askbox, $buttons, $extras); # not reinventing wheel
+	$fresh->set( font => applyFont('button'), );
+	$askbox->execute;
+	$askbox->destroy;
+	return $value;
+}
+print ".";
+
 print " OK; ";
 1;

@@ -42,6 +42,10 @@ require FIO;
 
 FIO::loadConf($conffilename);
 FIO::config('Debug','v',$debug);
+# other defaults:
+foreach (Sui::getDefaults()) {
+	FIO::config(@$_) unless defined FIO::config($$_[0],$$_[1]);
+}
 
 require FlexSQL;
 #require Anime;
