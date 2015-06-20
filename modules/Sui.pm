@@ -19,12 +19,14 @@ my %data = (
 	dbname => 'pomal',
 	dbhost => 'localhost',
 	tablekeys => {
-#		series_extra => ['alttitle',], #		pub_extra => ['alttitle',] #		episode => [], #		volume => [], #		chapter => [],
+#		series_extra => ['alttitle',], #		pub_extra => ['alttitle',]
 			series => ['sname','episodes','lastwatched','started','ended','score','content','rating','lastrewatched','seentimes','status','note','stype'],
 			pub => ['pname','volumes','chapters','lastreadc','lastreadv','started','ended','score','content','rating','lastreread','readtimes','status','note'],
 			extsid => ['mal','hum'],
 			extpid => ['mal','hum'],
-			# episode, volume, chapter?
+			episode => ['ename','score','content','rating','firstwatch'],
+			volume => ['vname','score','content','rating','firstread'],
+			chapter => ['cname','score','content','rating','firstread'],
 		},
 	tableids => { series => "sid", pub => "pid", extsid => "sid", extpid => "pid", },
 	objectionablecontent => [ 'nudity','violence','language','sex','brutality','blasphemy','horror','nihilism','theology','occult','superpowers','rape','fanservice','drugs','hentai','gambling','war','discrimination'],

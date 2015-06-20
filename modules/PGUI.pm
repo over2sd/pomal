@@ -205,20 +205,6 @@ sub convertColor {
 }
 print ".";
 
-sub createSplash {
-	my $window = shift;
-	my $vb = $window->insert( VBox => name => "splashbox", pack => { anchor => "n", fill => 'x', expand => 0, relx => 0.5, rely => 0.5, padx => 5, pady => 5, }, );
-	my $label = $vb->insert( Label => text => "Loading POMAL...", pack => { fill=> "x", expand => 0, side => "left", relx => 0.5, padx => 5, pady => 5,},);
-	my $progress = $vb->insert( Gauge =>
-		value => 0,	
-		relief => gr::Raise,
-		height => 35,
-		pack => { fill => 'x', expand => 0, padx => 3, side => "left", },
-	);
-	return $progress,$vb;
-}
-print ".";
-
 sub fillPage {
 	my ($dbh,$index,$typ,$gui) = @_;
 	unless (defined $$gui{tabbar}) { Pdie("fillPage couldn't find tab bar!"); }
@@ -379,118 +365,6 @@ sub importGUI {
 	### Later, put selection here for type of import to make
 	# For now, just allowing import of MAL XML file
 	PGK::refreshUI($gui,$dbh) unless(Import::importXML($dbh,$gui));
-}
-print ".";
-
-sub loadDBwithSplashDetail {
-	my $gui = shift;
-	my ($prog,$box) = createSplash($$gui{mainWin});
-	my $text = $$gui{status};
-	# do stuff using this window...
-	my $pulse = 0;
-	my $steps = 4;
-	my $step = 0;
-	my $base = "";
-	$text->text("Loading database config...");
-	$prog->value(++$step/$steps*100);
-	my $curstep = $box->insert( Label => text => "");
-	unless (defined config('DB','type')) {
-		$steps ++; # number of steps in type dialogue
-		my $dbtype = undef;
-		$text->text("Getting settings from user...");
-		$prog->value(++$step/$steps*100); # 0 (matches else)
-		my $result = message("Choose database type:",mb::Cancel | mb::Yes | mb::No,
-			buttons => {
-					mb::Yes, {
-						text => "MySQL", hint => "Use if you have a MySQL database.",
-					},
-					mb::No, {
-						text => "SQLite", hint => "Use if you can't use MySQL.",
-					},
-					mb::Cancel, {
-						text => "Quit", hint => "Abort loading the program (until you set up your database?)",
-					},
-			}
-		);
-		if ($result == mb::Yes) {
-			$dbtype = 'M';
-		} elsif ($result == mb::No) {
-			$dbtype = 'L';
-		} else {
-			print "Exiting (abort).\n";
-			$$gui{mainWin}->close();
-		}
-		$text->text("Saving database type...");
-		$prog->value(++$step/$steps*100);
-		# push DB type back to config, as well as all other DB information, if applicable.
-		config('DB','type',$dbtype);
-		$base = $dbtype;
-	} else {
-		$curstep->text("Using configured database type.");
-		$prog->value(++$step/$steps*100);
-		$base = config('DB','type');
-	}
-	unless (defined config('DB','host')) {
-		$steps ++; # host
-		# unless type is SQLite:
-		unless ($base eq 'L') {
-			$steps ++; # type dialogue
-			$curstep->text("Enter database login info");
-			$text->text("Getting login credentials...");
-			$prog->value(++$step/$steps*100); # 0
-		# ask user for host
-			my $host = input_box("Server Info","Server address:","127.0.0.1");
-		# ask user for SQL username, if needed by server (might not be, for localhost)
-			my $uname = input_box("Login Credentials","Username (if required)","");
-		# ask user if username required
-			my $umand = (message("Username required?",mb::YesNo) == mb::Yes ? 'y' : 'n');
-		# ask user if password required
-			my $pmand = (message("Password required?",mb::YesNo) == mb::Yes ? 'y' : 'n');
-			$curstep->text("---");
-			# save data from entry boxes...
-			$text->text("Saving server info...");
-			$prog->value(++$step/$steps*100); # 1
-			$uname = ($umand ? $uname : undef);
-			config('DB','host',$host); config('DB','user',$uname); config('DB','password',$pmand);
-		} else {
-			$text->text("Using file as database...");
-			config('DB','host','localfile'); # to prevent going through this branch every time
-			$prog->value(++$step/$steps*100); # 0a
-		}
-		FIO::saveConf();
-	}
-	my ($uname,$host,$pw) = (config('DB','user',undef),config('DB','host',undef),config('DB','password',undef));
-	# ask for password, if needed.
-	my $passwd = ($pw =~ /[Yy]/ ? input_box("Login Credentials","Enter password for $uname\@$host:") : '');
-	$curstep->text("Establish database connection.");
-	$text->text("Connecting to database...");
-	$prog->value(++$step/$steps*100);
-	my ($dbh,$error) = FlexSQL::getDB($base,$host,'pomal',$passwd,$uname);
-	if ($error =~ m/Unknown database/) { # rudimentary detection of first run
-		$steps++;
-		$curstep->text("Database not found. Attempting to initialize...");
-		$text->text("Attempting to initialize database...");
-		$prog->value(++$step/$steps*100);
-		($dbh,$error) = FlexSQL::makeDB($base,$host,'pomal',$passwd,$uname);
-	}
-	unless (defined $dbh) { # error handling
-		Pdie("ERROR: $error");
-		print "Exiting (no DB).\n";
-	} else {
-		$curstep->text("---");
-		$text->text("Connected.");
-	}
-	unless (FlexSQL::table_exists($dbh,'tags')) {
-		$steps++;
-		$prog->value(++$step/$steps*100);
-		$text->text("Attempting to initialize database tables...");
-		FlexSQL::makeTables($dbh);
-	}
-	$text->text("Done loading database.");
-	$prog->value(++$step/$steps*100);
-	if (0) { print "Splash screen steps: $step/$steps\n"; }
-	$box->close();
-	return $dbh;
 }
 print ".";
 
@@ -665,7 +539,7 @@ sub buildTitleRows {
 					autowidth => 1,
 					minSize => [10,10],
 					pack => { fill => "none", expand => 0, },
-					onClick => sub { incrementPortion($_[0],$pvbox,$updateform,$k,$updater); },
+					onClick => sub { incrementPortion($_[0],$pvbox,$updateform,$k,$updater,0); },
 				);
 			}
 			# if manga, put in the number of read/volumes (button)
@@ -687,7 +561,7 @@ sub buildTitleRows {
 						font => applyFont('progbut'),
 						minSize => [10,10],
 						pack => { fill => "none", expand => 0, },
-#						onClick => sub { incrementPortion($pvbox,$upform,$k,$updater) },
+						onClick => sub { incrementPortion($_[0],$pvbox,$upform,$k,$updater,1) },
 					);
 				}
 			}
@@ -830,9 +704,9 @@ die "\n";
 print ".";
 
 sub incrementPortion {
-	my ($caller,$target,$ttype,$titleid,$updater) = @_;
+	my ($caller,$target,$ttype,$titleid,$updater,$volume) = @_;
 	$caller->enabled(0);
-	my ($value,$max) = getPortions($updater,$ttype,$titleid);
+	my ($value,$max,$volno) = getPortions($updater,$ttype,$titleid,$volume);
 	unless (defined $max) {
 		sayBox(getGUI('mainWin'),"Error: Could not retrieve count max.");
 		$caller->enabled(1); # un-grey caller
@@ -842,9 +716,9 @@ sub incrementPortion {
 	my $result = updatePortion($ttype,$titleid,$value,$updater); # call updatePortion
 	if ($result == 0) { warn "Oops!";
 	} else {
-		setProgress($target,$ttype,$value,$max);
+		setProgress($target,$volume,$value,$max);
 	}
-	editPortion($titleid,$value, ($ttype > 1 ? 'chapter' : 'episode'));
+	editPortion($titleid,$value, ($volume ? 'volume' : ($ttype > 1 ? 'chapter' : 'episode')),$volno);
 	if (defined $value and $value == $max) { # ask to set complete if portions == total
 		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
 	} else {
@@ -854,8 +728,8 @@ sub incrementPortion {
 print ".";
 
 sub getPortions {
-	my ($updater,$uptype,$titleid) = @_;
-	my ($value,$max);
+	my ($updater,$uptype,$titleid,$volume) = @_;
+	my ($value,$max,$volno);
 	if ((config('DB','conserve') or 'mem') eq 'net') { # updating objects
 		my $sobj = $updater; # get object
 		# check if REF is for an Anime or Manga object
@@ -871,16 +745,17 @@ sub getPortions {
 			die "getPortions was not passed a database handler!";
 		}
 		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
-		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastreread FROM pub WHERE pid=?"; }
+		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastreread,volumes FROM pub WHERE pid=?"; }
 		if ($uptype > 3) { $st = "SELECT volumes,lastreadv FROM pub WHERE pid=?"; }
 		if (0) { print "$st <= $titleid\n"; }
 		my $res = FlexSQL::doQuery(5,$dbh,$st,$titleid);
 		unless (defined $res) { return; } # no response: return
 		$value = @$res[($uptype % 2 ? 2 : 1 )];
 		$max = @$res[0];
+		$volno = @$res[3] or 0;
 		if (0) { print "Count: ($value/$max)\n"; }
 	}
-	return $value,$max;
+	return $value,$max,$volno;
 }
 print ".";
 
@@ -917,12 +792,13 @@ sub updatePortion {
 print ".";
 
 sub setProgress {
-	my ($target,$uptype,$value,$max) = @_;
+	my ($target,$volume,$value,$max) = @_;
 	# update the widgets that display the portion count
-	my ($txtar,$nutar) = unpackProgBox($target,($uptype > 3 ? 1 : 0));
+	my ($txtar,$nutar,$extar) = unpackProgBox($target);
+	$txtar = $extar if ($volume);
 	my $pprog = $value . "/" . $max;
 	$txtar->text($pprog);
-	unless ($uptype > 3) {
+	unless ($volume) {
 		my $rawperc = $value / ($max or $value * 2)  * 100;
 		if (ref($nutar) =~ m/Gauge/) { $nutar->value($rawperc); }
 		$nutar->text(sprintf("%.2f%%",$rawperc));
@@ -931,8 +807,8 @@ sub setProgress {
 print ".";
 
 sub unpackProgBox {
-	my ($pbox,$getvols) = @_;
-	my ($countwidget,$percwidget,$pluswidget);
+	my ($pbox) = @_;
+	my ($countwidget,$percwidget,$volwidget);
 	my @kids = $pbox->get_widgets();
 	foreach (@kids) {
 		if (ref($_) =~ m/Gauge/ and $_->name eq 'partbar') { $percwidget = $_; }
@@ -942,50 +818,127 @@ sub unpackProgBox {
 				$countwidget = $a[0] if ($a[0]->name eq 'partlabel'); # should be this one
 			} elsif ($_->name eq 'volbox') {
 				my @a = $_->get_widgets();
-				$countwidget = $a[0] if ($a[0]->name eq 'vollabel'); # should be this one
+				$volwidget = $a[0] if ($a[0]->name eq 'vollabel'); # should be this one
 			}
 		}
 		print $_ . " " . $_->name . "\n" if (FIO::config('Debug','v') or 0);
 	}
-	return $countwidget,$percwidget,$pluswidget;
+	return $countwidget,$percwidget,$volwidget;
 }
 print ".";
 
 sub editPortion {
-	my ($title,$part,$ptype,$defaults) = @_;
+	my ($title,$part,$ptype,$vol) = @_;
 	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
 	return unless ($dets or $dorate); # not doing anything unless there's something to do.
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
-	$$gui{tabbar}->hide();
+	my $tabs = $$gui{tabbar};
+	$tabs->hide();
 	$qbox->empty();
 	$qbox->insert( Label => text => "Title $title has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
 	my $values = {};
-warn "Function is incomplete";
+	my $st = {
+		'episode' => "SELECT * FROM episode WHERE sid=? AND eid=?;",
+		'chapter' => "SELECT * FROM chapter WHERE pid=? AND cid=?;",
+		'volume' => "SELECT * FROM volume WHERE pid=? AND vid=?;",
+	};
+	my $key = { 'episode' => 'eid', 'chapter' => 'cid', 'volume' => 'vid' };
+	$st = $$st{$ptype} or die "Bad table name"; # no sympathy for bad tables!
+	$key = $$key{$ptype}; # already validated in previous line.
+	my $dbh = FlexSQL::getDB() or sayBox(getGUI('mainWin'),"portionExecute couldn't get database handler.");
+	return unless $dbh;
+	my $res = FlexSQL::doQuery(3,$dbh,$st,$title,$part,$key);
+	my $defaults = {};
+	if ($res) {
+		$$defaults{title} = $$res{$part}{ename} if defined $$res{$part}{ename};
+		$$defaults{title} = $$res{$part}{vname} if defined $$res{$part}{vname};
+		$$defaults{title} = $$res{$part}{cname} if defined $$res{$part}{cname};
+		$$defaults{date} = $$res{$part}{firstwatch} if defined $$res{$part}{firstwatch};
+		$$defaults{date} = $$res{$part}{firstread} if defined $$res{$part}{firstread};
+		$$defaults{score} = $$res{$part}{score} if defined $$res{$part}{score};
+		$$defaults{rating} = $$res{$part}{rating} if defined $$res{$part}{rating};
+		$$defaults{content} = $$res{$part}{content} if defined $$res{$part}{content};
+	}
 	sub portionExecute {
-		my ($title,$part,$ptype,$data) = @_;
+		my ($dbh,$title,$part,$ptype,$data,$target,$parent,$volno) = @_;
+		return unless $dbh;
 		my $st = {
 			'episode' => "SELECT firstwatch FROM episode WHERE sid=? AND eid=?;",
 			'chapter' => "SELECT firstread FROM chapter WHERE pid=? AND cid=?;",
 			'volume' => "SELECT firstread FROM volume WHERE pid=? AND vid=?;",
 		};
 		$st = $$st{$ptype} or die "Bad table name"; # no sympathy for bad tables!
-#		my $res = doQuery...
-print "\n$st\n";
-		print "Title $title/$part:";
-		foreach (keys %$data) {
-			print "\n$_: $$data{$_}";
+		my $res = FlexSQL::doQuery(6,$dbh,$st,$title,$part);
+		unless ($res) {
+			$st = "INSERT INTO";
+		} else {
+			$st = "UPDATE";
 		}
-		print "\n";
-		$qbox->empty();
-		$$gui{tabbar}->show();
+		$st = "$st $ptype SET "; # the validity of $ptype was checked already, so we can trust it now.
+		my %columns = (
+			episode => {
+				title => 'ename',
+				date => 'firstwatch',
+				score => 'score',
+				rating => 'rating',
+				content => 'content',
+			},
+			chapter => {
+				title => 'cname',
+				date => 'firstread',
+				score => 'score',
+				rating => 'rating',
+				content => 'content',
+			},
+			volume => {
+				title => 'vname',
+				date => 'firstread',
+				score => 'score',
+				rating => 'rating',
+				content => 'content',
+			},
+		);
+#		print "Title $title/$part:";
+		my @parms;
+		foreach (keys %$data) {
+#			print "\n$_ => $columns{$ptype}{$_}: $$data{$_}";
+			next unless defined $columns{$ptype}{$_};
+			$st = "$st$columns{$ptype}{$_}=?, ";
+			push(@parms,$$data{$_});
+		}
+		$st = substr($st,0,length($st)-2); # trim final ", "
+		if ($res) {
+			$st = "$st WHERE";
+			$st = "$st " . ($ptype eq 'episode' ? "sid=? AND eid=?" : ($ptype eq 'volume' ? "pid=? AND vid=?" : "pid=? AND cid=?")) . ";";
+		} else {
+			$st = "$st, " . ($ptype eq 'episode' ? "sid=?, eid=?" : ($ptype eq 'volume' ? "pid=?, vid=?" : "pid=?, cid=?")) . ";";
+		}
+		push(@parms,$title,$part);
+#		push(@parms,($volno or 0)) if ($ptype eq 'chapter');
+		$res = FlexSQL::doQuery(2,$dbh,$st,@parms);
+		$target->empty();
+		unless ($res == 1) {
+			$target->insert( Label => text => "$res: " . (defined $dbh->errstr ? $dbh->errstr : 'unknown'));
+			$target->insert( Button => text => "Continue", onClick => sub {
+				$target->empty();
+				$parent->show();
+				$target->send_to_back();
+			});
+			return 2;
+		} else {
+			$parent->show();
+			$target->send_to_back();
+			return 0;
+		}
 	}
 	if ($dets) { # If askdetails, show form for details
 		$qbox->insert( Label => text => "You can enter any details about this $ptype you would like to store:");
 		my $tibox = PGK::labelBox($qbox,"Title of $ptype",'h',boxex=>0); # show episode details form
-		$tibox->insert( InputLine => text => '', onChange => sub { $$values{title} = $_[0]->text; });
+		$tibox->insert( InputLine => text => ($$defaults{title} or ''), onChange => sub { $$values{title} = $_[0]->text; });
 #		my $cbox = PGK::labelBox($qbox,"Objectionable content",'h',boxex=>0);
-		my $date = PGK::insertDateWidget($qbox,$$gui{mainwin},{label => "First watched", default => Common::today(),boxex=>0, });
+		my $seen = ($ptype eq 'episode' ? "watched" : "read");
+		my $date = PGK::insertDateWidget($qbox,$$gui{mainwin},{label => "First $seen", default => ($$defaults{date} or Common::today()),boxex=>0, });
 		$$values{date} = $date->text;
 		$date->onClick( sub { $$values{date} = $date->text; });
 #		my $rbox = PGK::labelBox($qbox,"Appropriate for age",'h',boxex=>0);
@@ -996,15 +949,17 @@ print "\n$st\n";
 		$score->arrange("left"); # line up buttons horizontally
 		my @presets = ("0","Don't Rate","1","1","2",'2','3','3','4','4','5','5');
 #		push(@presets,'6','6','7','7','8','8','9','9','10','10') unless FIO::config('UI','starscore');
-		my $current = (int($$defaults{score}) or 0);
+		my $current = (int($$defaults{score} or 0));
 		$score-> build("Score for $ptype:",$current,@presets); # turn key:value pairs into exclusive buttons
 		$score->onChange( sub { $$values{score} = $score->value(); } );
 	}
+	$qbox->insert( Label => text => ' ', pack => { fill => 'both', expand => 1 });
 	my $butbox = $qbox->insert( HBox => name => 'buttons');
-	$butbox->insert( Button => text => 'Ok', onClick => sub { portionExecute($title,$part,$ptype,$values); }, );
-	$butbox->insert( Button => text => 'Cancel', onClick => sub {
+	$butbox->insert( Button => text => 'Set Details', onClick => sub { portionExecute($dbh,$title,$part,$ptype,$values,$qbox,$tabs,$vol); }, );
+	$butbox->insert( Button => text => 'Skip Setting Details', onClick => sub {
+		$tabs->show();
 		$qbox->empty();
-		$$gui{tabbar}->show();
+		$qbox->send_to_back();
 	} );
 }
 print ".";

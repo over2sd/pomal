@@ -1193,12 +1193,33 @@ sub savePos {
 	unless (defined $w && defined $h && defined $t && defined $l) {
 		return 1;
 	}
+	my ($lo,$to) = checkOffset($o);
 	FIO::config('Main','width',$w);
 	FIO::config('Main','height',$h);
-	FIO::config('Main','top',$t);
-	FIO::config('Main','left',$l);
+	FIO::config('Main','top',$t + $to);
+	FIO::config('Main','left',$l + $lo);
 	FIO::saveConf();
 	return 0;
+}
+print ".";
+
+sub checkOffset {
+	my $stored = FIO::config('Main','wmoff');
+	if (defined $stored) {
+#		print "Returning stored value...";
+		return split(',',$stored);
+	}
+	print "No window manager offset in configuration; calculating...";
+	my $o = shift;
+	my ($w,$h,$l,$t) = ($o->size,$o->origin);
+	$o->place( x => $l, rely => 1, y=> -$t, anchor => "nw");
+	my ($lo,$to) = $o->origin;
+	$lo -= $l;
+	$to -= $t;
+	print $o->name . " has an offset of ${lo}x$to...\n";
+	$stored = "$lo," . -$to;
+	FIO::config('Main','wmoff',$stored);
+	return $lo,-$to;
 }
 print ".";
 
