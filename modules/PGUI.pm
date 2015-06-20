@@ -844,7 +844,7 @@ sub incrementPortion {
 	} else {
 		setProgress($target,$ttype,$value,$max);
 	}
-#	editPortion();
+	editPortion($titleid,$value, ($ttype > 1 ? 'chapter' : 'episode'));
 	if (defined $value and $value == $max) { # ask to set complete if portions == total
 		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
 	} else {
@@ -952,13 +952,60 @@ sub unpackProgBox {
 print ".";
 
 sub editPortion {
-	my $defaults = shift;
-	my $qbox = getGUI('questionparent');
-	$qbox->show();
-	# If askdetails, show form for details
-	# If rateparts, show buttons to rate
+	my ($title,$part,$ptype,$defaults) = @_;
+	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
+	return unless ($dets or $dorate); # not doing anything unless there's something to do.
+	my $gui = getGUI();
+	my $qbox = $$gui{questionparent};
+	$$gui{tabbar}->hide();
 	$qbox->empty();
-	$qbox->hide();
+	$qbox->insert( Label => text => "Title $title has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+	my $values = {};
+warn "Function is incomplete";
+	sub portionExecute {
+		my ($title,$part,$ptype,$data) = @_;
+		my $st = {
+			'episode' => "SELECT firstwatch FROM episode WHERE sid=? AND eid=?;",
+			'chapter' => "SELECT firstread FROM chapter WHERE pid=? AND cid=?;",
+			'volume' => "SELECT firstread FROM volume WHERE pid=? AND vid=?;",
+		};
+		$st = $$st{$ptype} or die "Bad table name"; # no sympathy for bad tables!
+#		my $res = doQuery...
+print "\n$st\n";
+		print "Title $title/$part:";
+		foreach (keys %$data) {
+			print "\n$_: $$data{$_}";
+		}
+		print "\n";
+		$qbox->empty();
+		$$gui{tabbar}->show();
+	}
+	if ($dets) { # If askdetails, show form for details
+		$qbox->insert( Label => text => "You can enter any details about this $ptype you would like to store:");
+		my $tibox = PGK::labelBox($qbox,"Title of $ptype",'h',boxex=>0); # show episode details form
+		$tibox->insert( InputLine => text => '', onChange => sub { $$values{title} = $_[0]->text; });
+#		my $cbox = PGK::labelBox($qbox,"Objectionable content",'h',boxex=>0);
+		my $date = PGK::insertDateWidget($qbox,$$gui{mainwin},{label => "First watched", default => Common::today(),boxex=>0, });
+		$$values{date} = $date->text;
+		$date->onClick( sub { $$values{date} = $date->text; });
+#		my $rbox = PGK::labelBox($qbox,"Appropriate for age",'h',boxex=>0);
+#		$rbox->insert( SpinEdit => value => ($$defaults{rating} or 0), min => 0, max => 100, step => 1, pageStep => 5, onChange => sub { $$values{rating} = $_[0]->value; }, );
+	}
+	if ($dorate) { # If rateparts, show buttons to rate
+		my $score = $qbox-> insert( XButtons => name => 'score' ); # show rating buttons
+		$score->arrange("left"); # line up buttons horizontally
+		my @presets = ("0","Don't Rate","1","1","2",'2','3','3','4','4','5','5');
+#		push(@presets,'6','6','7','7','8','8','9','9','10','10') unless FIO::config('UI','starscore');
+		my $current = (int($$defaults{score}) or 0);
+		$score-> build("Score for $ptype:",$current,@presets); # turn key:value pairs into exclusive buttons
+		$score->onChange( sub { $$values{score} = $score->value(); } );
+	}
+	my $butbox = $qbox->insert( HBox => name => 'buttons');
+	$butbox->insert( Button => text => 'Ok', onClick => sub { portionExecute($title,$part,$ptype,$values); }, );
+	$butbox->insert( Button => text => 'Cancel', onClick => sub {
+		$qbox->empty();
+		$$gui{tabbar}->show();
+	} );
 }
 print ".";
 

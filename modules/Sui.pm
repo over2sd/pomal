@@ -118,6 +118,7 @@ sub getOpts {
 		'044' => ['n',"Shorten titles to this length",'titlelimit',30,15,300,1,10],
 		'045' => ['c',"Rate Portions of shows",'rateparts'],
 		'046' => ['c',"Store portion information",'askdetails'],
+		'047' => ['c',"Automatically calculate score (can be changed manually)",'autoscore'],
 
 		'050' => ['l',"Fonts",'Font'],
 		'054' => ['f',"Tab font/size: ",'label'],
@@ -267,6 +268,7 @@ sub getDefaults {
 	return (
 		['UI','rateparts',1],
 		['UI','askdetails',1],
+		['UI','autoscore',1],
 	);
 }
 

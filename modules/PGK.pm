@@ -52,11 +52,13 @@ sub build {
 	my ($self,$text,$default,@opts) = @_;
 	$self{value} = $opts[$default*2]; # x2 because $default is the position of the pair, not the item, in a paired array
 	$self->insert( Label => text => $text ) unless ($text eq "");
+	my $i = 0;
 	my %buttons = @opts;
-	foreach (keys %buttons) {
-		my $b = $self->insert( SpeedButton => checkable => 1, text => $buttons{$_}, name => $_, pack =>  { fill => "none", expand => 0, }, );
-		$b->checked(1) if ($_ eq $self{value});
+	while ($i < $#opts) {
+		my $b = $self->insert( SpeedButton => checkable => 1, text => $buttons{$opts[$i]}, name => $opts[$i], pack =>  { fill => "none", expand => 0, side => $self{side}, }, );
+		$b->checked(1) if ($opts[$i] eq $self{value});
 		$b->onClick( sub { $self->xClick($b); });
+		$i += 2;
 	}
 }
 
@@ -1342,6 +1344,7 @@ sub insertDateWidget {
 	my ($target,$parent,$extra) = @_;
 	require Prima::Calendar;
 	my $smallbox = $target->insert( HBox => sizeMin => [150,18], sizeMax => [300,50], pack => { fill => ($$extra{boxfill} or 'none'), expand => ($$extra{boxex} or 0), });
+	$smallbox->insert( Label => text => $$extra{label} ) if (defined $$extra{label});
 	my $calent = $smallbox->insert( InputLine => text => ($$extra{default} or '0000-00-00'), name => ($$extra{name} or 'imadate') );
 	my $calbut = $smallbox->insert( SpeedButton => name => ($$extra{buttonname} or 'showcal'), onClick => sub {
 		my $calwin = Prima::Dialog->create( size => [ 250, 275 ], owner => $parent);
