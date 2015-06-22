@@ -85,6 +85,7 @@ sub getOpts {
 ##		'002' => ['x',"Foreground color: ",'fgcol',"#00000"],
 ##		'003' => ['x',"Background color: ",'bgcol',"#CCCCCC"],
 		'004' => ['c',"Errors are fatal",'fatalerr'],
+		'005' => ['t',"Minimum mean to autoscore at max",'wowfactor'],
 
 		'005' => ['l',"Import/Export",'ImEx'],
 		'008' => ['c',"Use Disambiguation/Filter list",'filterinput'],
@@ -121,6 +122,8 @@ sub getOpts {
 		'045' => ['c',"Rate Portions of shows",'rateparts'],
 		'046' => ['c',"Store portion information",'askdetails'],
 		'047' => ['c',"Automatically calculate score (can be changed manually)",'autoscore'],
+		'048' => ['c',"Title score with a knob instead of a slider",'knobscore'],
+		'049' => ['c',"Extrapolate missing episode scores",'extendscore'],
 
 		'050' => ['l',"Fonts",'Font'],
 		'054' => ['f',"Tab font/size: ",'label'],

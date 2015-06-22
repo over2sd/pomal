@@ -577,6 +577,7 @@ sub buildTitleRows {
 			my $score = $row->insert( SpeedButton =>
 				text => sprintf("%.1f",$record{score} / 10), # put in the score
 				font => applyFont('button'),
+				onClick => sub { scoreTitle($k,$titletype,$_[0],$updater); },
 #				onClick => sub { scoreSlider($k,$titletype,$updater) },
 			);
 			$score->sizeMin($widths[3],$score->height) if (defined $widths[3] and $widths[3] > 0);
@@ -961,6 +962,137 @@ sub editPortion {
 		$qbox->empty();
 		$qbox->send_to_back();
 	} );
+}
+print ".";
+
+sub scoreTitle {
+# scoreTitle($k,$titletype,$record{score},$_[0],$updater); },
+	my ($title,$ttype,$caller,$dbh) = @_;
+	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
+	my $gui = getGUI();
+	my $qbox = $$gui{questionparent};
+	my $tabs = $$gui{tabbar};
+	$tabs->hide();
+	$qbox->empty();
+	my $st = {
+		'series' => "SELECT sid,sname,episodes,score FROM series WHERE sid=?",
+		'pub' => "SELECT pid,pname,chapters,score FROM pub WHERE pid=?",
+	};
+	my $key = {
+		'series' => 'sid',
+		'pub' => 'pid',
+	};
+	$st = $$st{$ttype} or die "Bad table name"; # no sympathy for bad tables!
+	$key = $$key{$ttype}; # already validated in previous line.
+	unless (defined $dbh) { $dbh = FlexSQL::getDB() or sayBox(getGUI('mainWin'),"scoreTitle couldn't get database handler."); }
+	return unless $dbh;
+	my %tdata;
+	my $res = FlexSQL::doQuery(3,$dbh,$st,$title,$key);
+	return unless ($res);
+	$tdata{score} = $$res{$title}{score};
+	$tdata{title} = $$res{$title}{($ttype eq 'series' ? 'sname' : 'pname')};
+	$tdata{ptype} = ($ttype eq 'series' ? 'episodes' : 'chapters');
+	$tdata{ttype} = ($ttype eq 'series' ? 'series' : 'pub');
+	$tdata{max} = $$res{$title}{$tdata{ptype}};
+	$tdata{key} = $key;
+	$qbox->insert( Label => text => "What is your rating of $tdata{title} ($tdata{max} $tdata{ptype})?", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+	my $barbox = $qbox->insert( HBox => name => 'scores', pack => {fill => 'x', expand => 0} );
+	my $suggtxt = $qbox->insert( Label => text => "Calculating...", wordWrap => 1, autoHeight => 1, pack => {fill => 'x', expand => 0},);
+	my $parms = {
+		circ => (FIO::config('UI','knobscore') or 0),
+		value => $tdata{score},
+	};
+	my @ticks;
+	my $i = 0;
+	while ($i <= ((FIO::config('UI','starscore') or 0) ? 50 : 100)) {
+		push(@ticks,{ value => $i, text => sprintf("%d",$i/10), });
+		$i += 10;
+	}
+	my $score = $qbox-> insert( ($$parms{circ} ? 'CircularSlider' : 'Slider') =>
+		value => ($$parms{value} or 0),
+		min => 0,
+		max => ((FIO::config('UI','starscore') or 0) ? 50 : 100),
+		step => 10,
+		pageStep => 30,
+		vertical => 0,
+		width => 400,
+		);
+	$score->set_ticks(@ticks);
+	my $spacer = $qbox->insert( Label => text => " ", pack => { fill => 'both', expand => 1 }, );
+	my $buttons = $qbox->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 0 },);
+	$buttons->insert( SpeedButton => text => "Set", onClick => sub {
+		$st = "UPDATE $ttype SET score=? WHERE $tdata{key}=?;"; # update score
+		my @parms = ($score->value,$title);
+		my $result = FlexSQL::doQuery(2,$dbh,$st,@parms);
+		$caller->text(sprintf("%.1f",$score->value / 10));
+		$qbox->empty();
+		$tabs->show();
+		$qbox->send_to_back();
+	});
+	$buttons->insert( SpeedButton => text => "Cancel", onClick => sub {
+		$qbox->empty();
+		$tabs->show();
+		$qbox->send_to_back();
+	});
+	unless (FIO::config('UI','autoscore')) {
+		$suggtxt->destroy();
+	} else {
+		$st = {
+			'series' => "SELECT eid,score,ename FROM episode WHERE sid=?",
+			'pub' => "SELECT cid,score,cname FROM chapter WHERE pid=?",
+		};
+		$key = {
+			'series' => 'eid',
+			'pub' => 'cid',
+		};
+		$st = $$st{$ttype}; # already validated
+		$key = $$key{$ttype}; # already validated
+		$st = "$st ORDER BY $key;";
+		$res = FlexSQL::doQuery(4,$dbh,$st,$title);
+		my ($scores,$bars) = (0,[]);
+		my $suggested = 0;
+		my $frames = 20; # because we're using gauges, we have to base it on 100, not 5 or 10.
+		if ($res) {
+			foreach (@$res) {
+#				printf("%03d: $$_[1] (%s)\n",$$_[0],($$_[2] or "?"));
+				my ($k,$n,$inc) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
+				my $val = 0;
+				if (FIO::config('UI','noanimate')) {
+					$val = $inc * $frames;
+				}
+				$suggested += $$_[1];
+				$scores++;
+				my $this = $barbox->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($tdata{max} > 12 ? ($tdata{max} > 24 ? ($tdata{max} > 36 ? 7 : 14) : 21) : 28),100],);
+				push(@$bars,$this);
+				pulseBars($bars,$frames);
+			}
+		}
+		while (@$bars) {
+			pulseBars($bars,$frames);
+		}
+		$suggested /= $scores if ($scores);
+		$suggested *= 2 unless (FIO::config('UI','starscore'));
+		$suggested *= ((($tdata{max} or 0) or $scores) / $scores) if (FIO::config('UI','extendscore') and $scores);
+		$suggested *= (10/(FIO::config('Main','wowfactor') or 8.45)); # This is a ratio, so no need to adjust for 5-star scoring;
+		$suggested = 50 if ($suggested > 50 and FIO::config('UI','starscore'));
+		$suggested = 100 if ($suggested > 100);
+		$suggtxt->text(sprintf("Based on your rated $tdata{ptype}, $tdata{title} deserves a score of %.1f",$suggested));
+		if ($score->value == 0) {
+			$score->value(int($suggested * 10));
+		}
+	}
+}
+print ".";
+
+sub pulseBars {
+	my ($group,$mult) = (@_,20);
+	return unless (ref($group) eq "ARRAY");
+	foreach (@$group) {
+		$_->value($_->value + int($_->name));
+		$_->text('');
+	}
+	shift @$group if ($$group[0]->value >= int($$group[0]->name) * $mult);
+	$::application->yield; # try to make this animate smoothly
 }
 print ".";
 
