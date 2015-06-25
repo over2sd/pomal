@@ -41,7 +41,7 @@ sub getTags {
 					_reval => "my_rewatch_value",
 					_downep => "my_downloaded_eps",
 					s_tags => "my_tags", # may need to be processed by a different algorithm
-					s_rewa => "my_rewatching",
+					_rewa => "my_rewatching",
 					lastwatched => "my_watched_episodes",
 					lastrewatched => "my_rewatching_ep",
 					_uoi => "update_on_import",

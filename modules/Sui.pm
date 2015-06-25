@@ -132,6 +132,7 @@ sub getOpts {
 		'052' => ['f',"Progress font/size: ",'progress'],
 		'053' => ['f',"Progress Button font/size: ",'progbut'],
 		'054' => ['f',"Major heading font/size: ",'bighead'],
+		'055' => ['f',"Sole-entry font/size: ",'bigent'],
 
 		'070' => ['l',"Custom Text",'Custom'],
 		'072' => ['t',"Anime:",'ani'],
@@ -274,6 +275,7 @@ sub getDefaults {
 		['UI','rateparts',1],
 		['UI','askdetails',1],
 		['UI','autoscore',1],
+		['Font','bigent',"Verdana 24"],
 	);
 }
 

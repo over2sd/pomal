@@ -66,6 +66,10 @@ sub fromMAL {
 	# these two hashes determine the hash key under which each XML tag will be stored:
 	my %anitags = External::getTags('MALa');
 	my %mantags = External::getTags('MALm');
+	my $waiter = ($$gui{questionparent} or undef);
+	$waiter->bring_to_front() if $waiter;
+	$::application->yield();
+	my $statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or 0);
 	while ($loop == 1) {
 		if ($xml->nodeType() == 8) { print "\nComment in XML: " . $xml->value() . "\n"; $loop = $xml->next(); next; } # print comments and skip processing
 		if ($xml->nodeType() == 13 or $xml->nodeType() == 14 or $xml->name() eq "myanimelist") { $i--; $loop = $xml->read(); next; } # skip whitespace (and root node)
@@ -89,6 +93,7 @@ sub fromMAL {
 				print "\n";
 			} elsif (/^anime$/) {
 				my $node = $xml->copyCurrentNode(1);
+				$statline->text("Attempting to import anime $info{$anitags{foundkey}}/$info{$anitags{totkey}} to database...") if $statline;
 				my ($updated,$error) = storeMAL($gui,$dbh,'series',$node,$termcolor,$anicol,\%info,%anitags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
 				if ($returndata) { push(@list,$updated); }
@@ -96,6 +101,7 @@ sub fromMAL {
 				print " ";
 			} elsif (/^manga$/) {
 				my $node = $xml->copyCurrentNode(1);
+				$statline->text("Attempting to import manga $info{$mantags{foundkey}}/$info{$mantags{totkey}} to database...") if $statline;
 				my ($updated,$error) = storeMAL($gui,$dbh,'pub',$node,$termcolor,$mancol,\%info,%mantags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
 				if ($returndata) { push(@list,$updated); }
@@ -110,6 +116,8 @@ sub fromMAL {
 #		if ($i > 30) { $loop = 0; } # to shorten test runs
 	}
 	$|--;
+	$waiter->empty() if $waiter;
+	$waiter->send_to_back() if $waiter;
 	$$gui{status}->text("Successfully imported $storecount titles to database ($upcount updated)...");
 	PGUI::sayBox(PGUI::getGUI(mainWin),"Successfully imported $storecount titles to database ($upcount updated)...");
 	if ($returndata) { return @list; } else { return $loop; }
@@ -119,9 +127,10 @@ print ".";
 sub storeMAL {
 	my ($gui,$dbh,$table,$node,$termcolor,$thiscol,$info,%tags) = @_;
 	my $basecol = ($termcolor ? Common::getColorsbyName("base") : "");
-	my %data;
+	my %data = (score => 0);
 	print "\n" . ++$$info{$tags{foundkey}} . "/$$info{$tags{totkey}} " . ($table eq 'series' ? "A" : "M");
-	$$gui{status}->text("Attempting to import $$info{$tags{foundkey}}/$$info{$tags{totkey}} anime to database...");
+	$$gui{status}->text("Attempting to import title $$info{$tags{foundkey}}/$$info{$tags{totkey}} to database...");
+	$::application->yield();
 	if ($termcolor) { print $thiscol; }
 	foreach (keys %tags) {
 		$child = @{ $node->getChildrenByTagName($tags{$_}) or [] }[0];
@@ -132,9 +141,15 @@ sub storeMAL {
 		if ("0000-00-00" eq $data{$_}) { delete $data{$_}; }
 	}
 	if (defined $data{status}) { # convert status to numeric value for consistency
+		my $rewa = int($data{_rewa} or 0);
 		$data{status} = Common::findIn($data{status},@{$tags{statuslist}});
-# if (status = completed or ended != 0000-00-00) and watched != max
-# set status to rewatching
+		my ($seen,$reseen) = (($tags{marker} eq 'A' ? 'lastwatched' : 'lastreadc'),($tags{marker} eq 'A' ? 'lastrewatched' : 'lastreread'));
+		if ($rewa) {
+			$data{status} = 3;
+			$data{$reseen} = $data{$seen};
+			$data{$seen} = $data{$tags{partkey}};
+		}
+		print "($data{$reseen}/$data{$seen}/$data{$tags{partkey}})" if (FIO::config('Debug','v'));
 		if (0) { print "Stat: $data{status} "; }
 	}
 	if ($returndata) {

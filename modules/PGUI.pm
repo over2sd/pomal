@@ -575,7 +575,7 @@ sub buildTitleRows {
 			$score->sizeMin($widths[3],$score->height) if (defined $widths[3] and $widths[3] > 0 and $widths[3] != 52); # not sure why 52 causes Prima::ScrollGroup::reset to go belly up, but I've tried other values near and far.
 		} else {
 			my $score = $row->insert( SpeedButton =>
-				text => sprintf("%.1f",$record{score} / 10), # put in the score
+				text => sprintf("%.1f",($record{score} or 0) / 10), # put in the score
 				font => applyFont('button'),
 				onClick => sub { scoreTitle($k,$titletype,$_[0],$updater); },
 #				onClick => sub { scoreSlider($k,$titletype,$updater) },
@@ -1112,12 +1112,13 @@ sub askPortion {
 	my ($key,$ptype,$ttype,$column) = ('sid','episodes','series',"last${rp}watched");
 	if ($uptype > 1) { ($key,$ptype,$ttype,$column) = ('pid','chapters','pub',"last${rp}readc"); }
 	if ($uptype > 3) { ($ptype,$column) = ('volumes','lastreadv'); }
-	my $row = PGK::labelBox( $qbox,"How many $ptype of $title have you finished?",'numrow','h', boxex => 0, labex => 0);
-	my $n = $row->insert( SpinEdit => value => $value, min => 0, max => ($max or 1000), step => 1, pageStep => 5);
-	my $buttons = $qbox->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 0 },);
-	$buttons->insert( SpeedButton => text => "Set", onClick => sub {
+	$qbox->insert( Label => text => " ", name => 'spacer', pack => { fill => 'y', expand => 1},);
+	$qbox->insert( Label => text => "How many $ptype of $title have you finished?", wordWrap => 1, autoHeight => 1, pack => { fill => 'x', expand => 0}, valign => ta::Bottom, alignment => ta::Center);
+	my $row = PGK::labelBox( $qbox,"",'numrow','h', boxex => 0, labex => 0);
+	my $n = $row->insert( SpinEdit => value => $value, min => 0, max => ($max or 1000), step => 1, pageStep => 5, autoHeight => 1, font => applyFont('bigent'), sizeMin => [100,50]);
+	$row->insert( Label => text => " ", name => 'spacer', pack => { fill => 'x', expand => 1}, sizeMin => [75,20]);
+	$row->insert( SpeedButton => text => "Set", onClick => sub {
 		my $value = $n->value;
-print "!";
 		my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
 		if ($result == 0) { warn "Oops!";
 		} else {
@@ -1128,11 +1129,12 @@ print "!";
 			warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
 		}
 	});
-	$buttons->insert( SpeedButton => text => "Cancel", onClick => sub {
+	$row->insert( SpeedButton => text => "Cancel", onClick => sub {
 		$qbox->empty();
 		$tabs->show();
 		$qbox->send_to_back();
 	});
+	$qbox->insert( Label => text => " ", name => 'spacer', pack => { fill => 'y', expand => 1},);
 }
 print ".";
 

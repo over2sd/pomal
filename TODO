@@ -18,6 +18,7 @@ Display/edit of dates started/completed
 Roadmap
 =======
 (release criteria)
+Items marked with = are already completed.
 
 v0.1:
 -----
@@ -26,7 +27,7 @@ Prima GUI to same point as old GTK2 GUI.
 v0.3:
 -----
 Option: display last episode watched, or next episode to watch?
-Episode voting
+= Episode voting
 Display/edit of tags for series/pub
 Options: If a radiobutton option has more than two options, generate a VBox instead of an HBox
 
@@ -35,7 +36,7 @@ v1.0:
 FIX: Some characters cannot be stored/displayed properly, right now.
 Storage of alternate titles (including CJK support)
 Sanity checking for all input values, specifically those expect to be between, e.g., 0..10.
-Episode name recording
+= Episode name recording
 Detect movies and put them on their own notebook tab
 Allow titles to be arranged in different orders
 Main context should create (and pass down) global references for the rows that'll go in the display tables, so that the program can rearrange the display without making SQL calls every time. But only if the net-conserving mode is chosen.
@@ -47,7 +48,7 @@ Pretty up the display tables
 Export of database to XML
 Export of database to SQL dump document
 Import of content marker files (from other users, who may not have the same numbering?)
-Manual entry of titles
+= Manual entry of titles
 
 v2.0:
 -----
