@@ -610,8 +610,8 @@ my $partmax = 2000; # TODO: make this an option
 
 sub addTitle {
 	my ($gui,$tab) = @_;
-	my $dbh = FlexSQL::getDB();
 	unless ($tab eq 'man' or $tab eq 'ani') { print "[E] addTitle does not recognize '$tab' as a valid option.\n"; return; }
+	my $dbh = FlexSQL::getDB();
 	my $box = $$gui{questionparent};
 	$$gui{tabbar}->hide();
 	$box->empty();
@@ -664,12 +664,12 @@ sub addTitle {
 	my $note = $row7->insert( InputLine => name => 'notes', text => '', sizeMin => [500,20]);
 
 	my $buttons = $box->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 1, });
-	$buttons->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
+	$buttons->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $box->send_to_back(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
 	$buttons->insert( Button => text => "Add", onClick => sub {
 		return unless ($name->text ne '');
 		$_[0]->enabled(0);
 		my %data; # hashify
-		if ($titlestat eq 'com') {
+		if ($titlestat->value eq 'com') {
 			$lastep->value = $eps->value;
 		}
 		foreach ($name, $started, $ended, $score, $stype, $note, $tags) {
@@ -678,7 +678,7 @@ sub addTitle {
 		foreach ($eps, $seentimes, ) {
 			$data{$_->name} = $_->value;
 		}
-		if ($titlestat eq 'rew') {
+		if ($titlestat->value eq 'rew') {
 			$data{lastrewatched} = $lastep->value;
 			$data{lastwatched} = $eps->value;
 		}
@@ -687,19 +687,21 @@ sub addTitle {
 		my %stats = Sui::getStatIndex();
 		$data{status} = $stats{$titlestat->value};
 		$data{sid} = -1;
-		my $tabid = passTabByCode('ani',$titlestat->value);
+		my $tabid = passTabByCode($tab,$titlestat->value);
 print "Tab: $tabid\n";
 		
 die "\n";
-		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'usr','series',\%data);
+		my $ttype = ($tab eq 'man' ? 'pub' : 'series');
+		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'usr',$ttype,\%data);
 		$data{sid} = $realid;
-		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,'series',1,{idneeded => 1}); # prepare
+		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,$ttype,1,{idneeded => 1}); # prepare
 		if ($error) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
 		$error = FlexSQL::doQuery(2,$dbh,$cmd,@parms); # submit
-		$error = Sui::addTags($dbh,substr('series',0,1),$data{sid},$data{tags});
+		$error = Sui::addTags($dbh,substr($ttype,0,1),$data{sid},$data{tags});
 		$$gui{tabbar}->show();
 		# display
 		$box->empty();
+		$box->send_to_back();
 	}, );
 }
 print ".";

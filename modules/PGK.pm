@@ -1050,19 +1050,14 @@ Returns a HASREF.
 my %windowset;
 sub createMainWin {
 	my ($program,$version,$w,$h) = @_;
-	my $position = FIO::config('Main','savepos');
-	if ($position) {
-		unless ($w and $h) { $w = ($w or FIO::config('Main','width') or 800); $h = ($h or FIO::config('Main','height') or 500); }
-	}
-	$w = ($w or 800); $h = ($h or 500);
+	unless ($w and $h) { $w = ($w or FIO::config('Main','width') or 800); $h = ($h or FIO::config('Main','height') or 500); }
 	my $window = Prima::MainWindow->new(
 		text => (FIO::config('Custom','program') or "$program") . " v.$version",
 		size => [$w,$h],
 		font => applyFont('body'),
 	);
-	if ($position) {
-		$window->place( x => (FIO::config('Main','left') or 40), rely => 1, y=> -(FIO::config('Main','top') or 30), anchor => "nw");
-	}
+	my ($t,$l) = ((FIO::config('Main','top') or 30),(FIO::config('Main','left') or 40));
+	$window->place( x => $l, rely => 1, y=> -$t, anchor => "nw");
 	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; } );
 	#pack it all into the hash for main program use
 	$windowset{mainWin} = $window;

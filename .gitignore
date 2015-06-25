@@ -24,3 +24,4 @@ add.sh
 test.pl
 *.json
 try.pl
+config.ini

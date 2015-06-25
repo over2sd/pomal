@@ -276,6 +276,7 @@ sub getDefaults {
 		['UI','askdetails',1],
 		['UI','autoscore',1],
 		['Font','bigent',"Verdana 24"],
+		['UI','statustabs',1],
 	);
 }
 

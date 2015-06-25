@@ -11,7 +11,7 @@ sub getCount { return $count; }
 $|++; # Immediate STDOUT, maybe?
 
 use Getopt::Long;
-my $version = "0.1.14prealpha";
+my $version = "0.1.15prealpha";
 my $conffilename = 'config.ini';
 my $showhelp = 0;
 my $remdb = 0; # clear the database. Use with caution!!!
