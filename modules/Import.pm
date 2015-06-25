@@ -133,6 +133,8 @@ sub storeMAL {
 	}
 	if (defined $data{status}) { # convert status to numeric value for consistency
 		$data{status} = Common::findIn($data{status},@{$tags{statuslist}});
+# if (status = completed or ended != 0000-00-00) and watched != max
+# set status to rewatching
 		if (0) { print "Stat: $data{status} "; }
 	}
 	if ($returndata) {

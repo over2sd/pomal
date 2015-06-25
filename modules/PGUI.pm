@@ -515,7 +515,7 @@ sub buildTitleRows {
 				text => $pprog,
 				pack => { expand => 1, fill => 'both', },
 					# link the button to a dialog asking for a new value
-#				onClick => sub { askPortion($pvbox,$updateform,$k,$updater);},
+				onClick => sub { askPortion($pvbox,$updateform,$k,$updater,$record{title},($record{status} == 3));},
 			);
 			applyFont('button',$pbut);
 			# put in a label giving the % completed (using watch or rewatched episodes)
@@ -539,7 +539,7 @@ sub buildTitleRows {
 					autowidth => 1,
 					minSize => [10,10],
 					pack => { fill => "none", expand => 0, },
-					onClick => sub { incrementPortion($_[0],$pvbox,$updateform,$k,$updater,0); },
+					onClick => sub { incrementPortion($_[0],$pvbox,$updateform,$k,$record{title},$updater,0); },
 				);
 			}
 			# if manga, put in the number of read/volumes (button)
@@ -548,8 +548,8 @@ sub buildTitleRows {
 				# put in the number of watched/episodes (button) -- or chapters
 				my $vbut = $pvolbox->insert( Label =>
 					name => 'vollabel',
-					text => "$record{lastreadv}/$record{volumes}"
-#					onClick => sub { askPortion($pvbox,$upform,$k,$updater); },
+					text => "$record{lastreadv}/$record{volumes}",
+					onClick => sub { askPortion($pvbox,'volume',$k,$updater,$record{title},($record{status} == 3)); },
 				);
 				# link the button to a dialog asking for a new value
 				my $upform = ($record{status} == 3 ? 5 : 4 );
@@ -561,7 +561,7 @@ sub buildTitleRows {
 						font => applyFont('progbut'),
 						minSize => [10,10],
 						pack => { fill => "none", expand => 0, },
-						onClick => sub { incrementPortion($_[0],$pvbox,$upform,$k,$updater,1) },
+						onClick => sub { incrementPortion($_[0],$pvbox,$upform,$k,$record{title},$updater,1) },
 					);
 				}
 			}
@@ -705,7 +705,7 @@ die "\n";
 print ".";
 
 sub incrementPortion {
-	my ($caller,$target,$ttype,$titleid,$updater,$volume) = @_;
+	my ($caller,$target,$ttype,$titleid,$title,$updater,$volume) = @_;
 	$caller->enabled(0);
 	my ($value,$max,$volno) = getPortions($updater,$ttype,$titleid,$volume);
 	unless (defined $max) {
@@ -719,7 +719,7 @@ sub incrementPortion {
 	} else {
 		setProgress($target,$volume,$value,$max);
 	}
-	editPortion($titleid,$value, ($volume ? 'volume' : ($ttype > 1 ? 'chapter' : 'episode')),$volno);
+	editPortion($title,$titleid,$value, ($volume ? 'volume' : ($ttype > 1 ? 'chapter' : 'episode')),$volno);
 	if (defined $value and $value == $max) { # ask to set complete if portions == total
 		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
 	} else {
@@ -747,7 +747,7 @@ sub getPortions {
 		}
 		my $st = "SELECT episodes,lastwatched,lastrewatched FROM series WHERE sid=?";
 		if ($uptype > 1) { $st = "SELECT chapters,lastreadc,lastreread,volumes FROM pub WHERE pid=?"; }
-		if ($uptype > 3) { $st = "SELECT volumes,lastreadv FROM pub WHERE pid=?"; }
+		if ($uptype > 3) { $st = "SELECT volumes,lastreadv, lastreadv FROM pub WHERE pid=?"; }
 		if (0) { print "$st <= $titleid\n"; }
 		my $res = FlexSQL::doQuery(5,$dbh,$st,$titleid);
 		unless (defined $res) { return; } # no response: return
@@ -797,7 +797,7 @@ sub setProgress {
 	# update the widgets that display the portion count
 	my ($txtar,$nutar,$extar) = unpackProgBox($target);
 	$txtar = $extar if ($volume);
-	my $pprog = $value . "/" . $max;
+	my $pprog = $value . "/" . ($max or '-');
 	$txtar->text($pprog);
 	unless ($volume) {
 		my $rawperc = $value / ($max or $value * 2)  * 100;
@@ -829,7 +829,7 @@ sub unpackProgBox {
 print ".";
 
 sub editPortion {
-	my ($title,$part,$ptype,$vol) = @_;
+	my ($displaytitle,$title,$part,$ptype,$vol) = @_;
 	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
 	return unless ($dets or $dorate); # not doing anything unless there's something to do.
 	my $gui = getGUI();
@@ -837,7 +837,7 @@ sub editPortion {
 	my $tabs = $$gui{tabbar};
 	$tabs->hide();
 	$qbox->empty();
-	$qbox->insert( Label => text => "Title $title has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+	$qbox->insert( Label => text => "$displaytitle has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
 	my $values = {};
 	my $st = {
 		'episode' => "SELECT * FROM episode WHERE sid=? AND eid=?;",
@@ -1093,6 +1093,46 @@ sub pulseBars {
 	}
 	shift @$group if ($$group[0]->value >= int($$group[0]->name) * $mult);
 	$::application->yield; # try to make this animate smoothly
+}
+print ".";
+
+sub askPortion {
+	my ($target,$uptype,$titleid,$updater,$title) = @_;
+	my ($value,$max,$volno) = getPortions($updater,$uptype,$titleid,($uptype > 3));
+	unless (defined $max) {
+		sayBox(getGUI('mainWin'),"Error: Could not retrieve count max.");
+		return;
+	}
+	my $gui = getGUI();
+	my $qbox = $$gui{questionparent};
+	my $tabs = $$gui{tabbar};
+	$tabs->hide();
+	$qbox->empty();
+	my $rp = ($uptype % 2 ? '' : 're');
+	my ($key,$ptype,$ttype,$column) = ('sid','episodes','series',"last${rp}watched");
+	if ($uptype > 1) { ($key,$ptype,$ttype,$column) = ('pid','chapters','pub',"last${rp}readc"); }
+	if ($uptype > 3) { ($ptype,$column) = ('volumes','lastreadv'); }
+	my $row = PGK::labelBox( $qbox,"How many $ptype of $title have you finished?",'numrow','h', boxex => 0, labex => 0);
+	my $n = $row->insert( SpinEdit => value => $value, min => 0, max => ($max or 1000), step => 1, pageStep => 5);
+	my $buttons = $qbox->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 0 },);
+	$buttons->insert( SpeedButton => text => "Set", onClick => sub {
+		my $value = $n->value;
+print "!";
+		my $result = updatePortion($uptype,$titleid,$value,$updater); # call updatePortion
+		if ($result == 0) { warn "Oops!";
+		} else {
+			setProgress($target,($uptype > 3),$value,$max);
+		}
+		editPortion($title,$titleid,$value,($uptype > 3 ? 'volume' : ($ttype eq 'pub' ? 'chapter' : 'episode')));
+		if (defined $value and $value == $max) { # ask to set complete if portions == total
+			warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
+		}
+	});
+	$buttons->insert( SpeedButton => text => "Cancel", onClick => sub {
+		$qbox->empty();
+		$tabs->show();
+		$qbox->send_to_back();
+	});
 }
 print ".";
 
