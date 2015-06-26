@@ -9,7 +9,8 @@ Options: mask row type
 Install script that checks for and pulls unsatisfied Perl dependencies?
 The project still needs Anime and Manga objects. They will be useful for an option to preserve network traffic rather than memory footprint.
 Perhaps disambiguation list should be loaded from an external file, so the user can modify it without diving into code?
-Recent activity timeline with buttons for five most recent shows, plus list of activity within the past n days.
+= Recent activity buttons for five most recent shows
+Recent activity timeline of activity within the past n days.
 Storage of additional title information
 Start rewatching show button (use undo icon to save button space?)
 Display/edit of tags for episode/chapter?
@@ -48,7 +49,7 @@ Pretty up the display tables
 Export of database to XML
 Export of database to SQL dump document
 Import of content marker files (from other users, who may not have the same numbering?)
-= Manual entry of titles
+Manual entry of titles
 
 v2.0:
 -----

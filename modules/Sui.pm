@@ -133,7 +133,8 @@ sub getOpts {
 		'052' => ['f',"Progress font/size: ",'progress'],
 		'053' => ['f',"Progress Button font/size: ",'progbut'],
 		'054' => ['f',"Major heading font/size: ",'bighead'],
-		'055' => ['f',"Sole-entry font/size: ",'bigent'],
+		'055' => ['f',"Heading font/size: ",'head'],
+		'056' => ['f',"Sole-entry font/size: ",'bigent'],
 
 		'070' => ['l',"Custom Text",'Custom'],
 		'072' => ['t',"Anime:",'ani'],

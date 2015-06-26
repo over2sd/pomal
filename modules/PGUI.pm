@@ -226,9 +226,9 @@ sub fillPage {
 		elsif (/rec/) {
 			$$gui{status}->text("Preparing recent activity box...");
 			$::application->yield();
-			$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ" );
-			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
-			$target->insert( Label => text => "This functionality has not yet been coded.");
+			$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ", pack => {fill => 'both', expand => 0} );
+			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, pady => 3, side => "top",}, alignment => ta::Left, );
+			$target->insert( SpeedButton => text => "Show Recent", onClick => sub { spreadRecent($dbh,$$gui{recent}); });
 			$$gui{recent} = $target;
 			return; }
 		else { warn "Something unexpected happened"; return; }
@@ -422,7 +422,7 @@ sub populateMainWin {
 	$waiter->destroy();
 	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('UI','activerecent') ? getTabByCode('rec') : 0));
 	$$gui{status}->text("Ready.");
-#	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('UI','activerecent'));
+	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('UI','activerecent'));
 }
 print ".";
 
@@ -727,7 +727,7 @@ sub incrementPortion {
 	my $result = updatePortion($ttype,$titleid,$value,$updater); # call updatePortion
 	if ($result == 0) { warn "Oops!";
 	} else {
-		setProgress($target,$volume,$value,$max);
+		setProgress($target,$volume,$value,$max) if (defined $target);
 	}
 	editPortion($title,$titleid,$value, ($volume ? 'volume' : ($ttype > 1 ? 'chapter' : 'episode')),$volno);
 	if (defined $value and $value == $max) { # ask to set complete if portions == total
@@ -735,6 +735,7 @@ sub incrementPortion {
 	} else {
 		$caller->enabled(1);
 	}
+	return $value;
 }
 print ".";
 
@@ -848,7 +849,7 @@ sub editPortion {
 	$tabs->hide();
 	$qbox->empty();
 	$qbox->insert( Label => text => "$displaytitle has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
-	my $values = {};
+	my $values = {part => $part,};
 	my $st = {
 		'episode' => "SELECT * FROM episode WHERE sid=? AND eid=?;",
 		'chapter' => "SELECT * FROM chapter WHERE pid=? AND cid=?;",
@@ -971,6 +972,7 @@ sub editPortion {
 		$qbox->empty();
 		$qbox->send_to_back();
 	} );
+# magic command that keeps function from returning until user presses button goes here???
 }
 print ".";
 
@@ -1062,7 +1064,7 @@ sub scoreTitle {
 		my $suggested = 0;
 		my $frames = 20; # because we're using gauges, we have to base it on 100, not 5 or 10.
 		if ($res) {
-			$scores = fillBoxwithBars($barbox,$scores,$bars,$frames,$tdata{max},$res);
+			($scores,$suggested) = fillBoxwithBars($barbox,$scores,$bars,$frames,$res,{width => ($tdata{max} > 12 ? ($tdata{max} > 24 ? ($tdata{max} > 36 ? 7 : 14) : 21) : 28)});
 		}
 		$suggested /= $scores if ($scores);
 		$suggested *= 2 unless (FIO::config('Main','starscore'));
@@ -1083,7 +1085,7 @@ sub pulseBars {
 	return unless (ref($group) eq "ARRAY");
 	foreach (@$group) {
 		$_->value($_->value + int($_->name));
-		$_->text('');
+#		$_->text('');
 	}
 	shift @$group if ($$group[0]->value >= int($$group[0]->name) * $mult);
 	$::application->yield; # try to make this animate smoothly
@@ -1136,26 +1138,61 @@ sub spreadRecent {
 	my ($dbh,$recent) = @_;
 	my $st = "SELECT DISTINCT %s,%s FROM %s ORDER BY %s DESC";
 	my %fields = (
-		man => ['pid','firstread','chapter','cid','cname','pname'],
-		ani => ['sid','firstwatch','episode','eid','ename','sname'],
+		pub => ['pid','firstread','chapter','cid','cname','pname',"Manga",'lastreadc','lastreread'],
+		series => ['sid','firstwatch','episode','eid','ename','sname',"Anime",'lastwatched','lastrewatched'],
 	);
 	my $max = (FIO::config('Main','reclimit') or 5);
 	$st = "$st LIMIT %d" if ($max);
 	$recent->empty();
-	foreach ('ani','man') {
+	$recent->insert( SpeedButton => text => "Refresh", onClick => sub { spreadRecent($dbh,$recent); });
+	foreach ('series','pub') {
 		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$max);
-print "Asking database: $cmd\n";
+#print "Asking database: $cmd\n";
 		my $res = FlexSQL::doQuery(4,$dbh,$cmd);
 		if ($res) {
+			$recent->insert( Label => text => "$fields{$_}[6] Activity", font => applyFont('head'), alignment => ta::Left, pack => {fill => 'x'}, autoHeight => 1);
 			my $key = $_;
 			foreach (@$res) {
-				$cmd = "SELECT %s,%s,%ss FROM %s WHERE %s=?;";
-				print "$$_[0] was last active on $$_[1].\n";
-				$cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=?;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[2],$fields{$key}[0]);
-				my $subres = FlexSQL::doQuery(4,$dbh,$cmd,$$_[0]);
-				if ($subres) {
-					my $scores = fillBoxwithBars($barbox,0,$bars,$frames,,$res);
+				my $date = $$_[1];
+				$cmd = sprintf("SELECT %s,%s,%ss,status,%s,%s FROM %s WHERE %s=?;",$fields{$key}[0],$fields{$key}[5],$fields{$key}[2],$fields{$key}[7],$fields{$key}[8],$key,$fields{$key}[0]);
+				my $subres = FlexSQL::doQuery(3,$dbh,$cmd,$$_[0],$fields{$key}[0]);
+				unless ($subres) {
+					warn "Something went wrong with the query: $dbh->errstr";
+					next;
 				}
+				my ($bars,$frames,$max,$tname,$tprog,$status,$tid) = ([],20,$$subres{$$_[0]}{$fields{$key}[2] . "s"},$$subres{$$_[0]}{$fields{$key}[5]},$$subres{$$_[0]}{($$subres{$$_[0]}{status} == 3 ? $fields{$key}[8] : $fields{$key}[7])},$$subres{$$_[0]}{status},$$_[0]);
+				print "$tname was last active on $date.\n" if (FIO::config('Debug','v'));
+				my $lab = $recent->insert( Label => text => "$date: $tname", alignment => ta::Left, pack => {fill => 'x'});
+				my $row = $recent->insert( HBox => name => "$$_[0] row", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 2, pady => 11, );
+				my $barbox = $row->insert( HBox => name => "$$_[0] bars", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 2, pady => 3, );
+				$cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=? ORDER BY %s ASC;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
+				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid);
+				my ($scores,$suggested) = (0,0);
+				if ($subres) {
+					($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
+					$lab->text("($date) $tname - Total: $suggested" );
+				} else {
+					warn "Something went wrong with the query: $dbh->errstr";
+				}
+				$tprog++;
+				$row->insert( Widget => name => 'spacer', pack => {fill => 'x', expand => 1, }, sizeMax => [1000,10]);
+				my $uform = ($key eq "series" ? ($status == 3 ? 1 : 0 ) : ($status == 3 ? 3 : 2 ) );
+				$row->insert( SpeedButton =>
+					text => "Watch $fields{$key}[2] $tprog",
+					onClick => sub {
+						my $prog = incrementPortion($_[0],undef,$uform,$tid,$tname,$dbh,0);
+						# pull new part from part table
+#				$cmd = sprintf("SELECT %s,score,%s,%s FROM %s WHERE %s=? AND %s=?;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[1],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
+#				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid,$prog);
+						# add bar to barbox
+#					($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
+						# update total
+#					$lab->text("($date) $tname - Total: $suggested" );
+						$prog++;
+						$_[0]->text("Watch $fields{$key}[2] $prog");
+					},
+#					sizeMin => [100,15],
+				) unless ($status == 4 or $tprog == $max);
 			}
 		}
 	}
@@ -1163,25 +1200,26 @@ print "Asking database: $cmd\n";
 print ".";
 
 sub fillBoxwithBars {
-	my ($target,$scores,$bars,$frames,$max,$mylist) = @_;
-	die "fillBoxwithBars requires all of its arguments" unless ($max);
-		foreach (@$mylist) {
+	my ($target,$scores,$bars,$frames,$mylist,$exargs) = @_;
+	my $suggested = 0;
+	foreach (@$mylist) {
 #		printf("%03d: $$_[1] (%s)\n",$$_[0],($$_[2] or "?"));
 		my ($k,$n,$inc) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
+		next unless $inc; # no need to make a bar for non-scored item
 		my $val = 0;
 		if (FIO::config('UI','noanimate')) {
 			$val = $inc * $frames;
 		}
-		$suggested += $$_[1];
+		$suggested += $inc;
 		$scores++;
-		my $this = $target->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($max > 12 ? ($max > 24 ? ($max > 36 ? 7 : 14) : 21) : 28),100],);
+		my $this = $target->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($$exargs{width} or 28),($$exargs{height} or 100)],);
 		push(@$bars,$this);
 		pulseBars($bars,$frames);
 	}
 	while (@$bars) {
 		pulseBars($bars,$frames);
 	}
-	return $scores;
+	return $scores,$suggested;
 }
 print ".";
 
