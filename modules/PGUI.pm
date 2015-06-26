@@ -223,7 +223,14 @@ sub fillPage {
 		elsif (/mov/) { $rowtyp = "series"; $exargs{max} = 1; }
 		elsif (/sam/) { $rowtyp = "pub"; $exargs{max} = 1; }
 		elsif (/sug/) { warn "Suggestions are not yet supported"; return; }
-		elsif (/rec/) { warn "Recent activity is not yet supported"; return; }
+		elsif (/rec/) {
+			$$gui{status}->text("Preparing recent activity box...");
+			$::application->yield();
+			$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ" );
+			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
+			$target->insert( Label => text => "This functionality has not yet been coded.");
+			$$gui{recent} = $target;
+			return; }
 		else { warn "Something unexpected happened"; return; }
 	}
 	$$gui{status}->text("Loading titles...");
@@ -411,10 +418,11 @@ sub populateMainWin {
 	foreach (0..$#tabs) {
 		fillPage($dbh,$_,$tabs[$_],$gui);
 	}
-	$note->pageIndex(0);
 	$note->show();
 	$waiter->destroy();
+	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('UI','activerecent') ? getTabByCode('rec') : 0));
 	$$gui{status}->text("Ready.");
+#	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('UI','activerecent'));
 }
 print ".";
 
@@ -832,7 +840,7 @@ print ".";
 
 sub editPortion {
 	my ($displaytitle,$title,$part,$ptype,$vol) = @_;
-	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
+	my ($dets,$dorate) = (FIO::config('Main','askdetails'),FIO::config('Main','rateparts'));
 	return unless ($dets or $dorate); # not doing anything unless there's something to do.
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
@@ -951,7 +959,6 @@ sub editPortion {
 		my $score = $qbox-> insert( XButtons => name => 'score' ); # show rating buttons
 		$score->arrange("left"); # line up buttons horizontally
 		my @presets = ("0","Don't Rate","1","1","2",'2','3','3','4','4','5','5');
-#		push(@presets,'6','6','7','7','8','8','9','9','10','10') unless FIO::config('UI','starscore');
 		my $current = (int($$defaults{score} or 0));
 		$score-> build("Score for $ptype:",$current,@presets); # turn key:value pairs into exclusive buttons
 		$score->onChange( sub { $$values{score} = $score->value(); } );
@@ -970,7 +977,7 @@ print ".";
 sub scoreTitle {
 # scoreTitle($k,$titletype,$record{score},$_[0],$updater); },
 	my ($title,$ttype,$caller,$dbh) = @_;
-	my ($dets,$dorate) = (FIO::config('UI','askdetails'),FIO::config('UI','rateparts'));
+	my ($dets,$dorate) = (FIO::config('Main','askdetails'),FIO::config('Main','rateparts'));
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
 	my $tabs = $$gui{tabbar};
@@ -1006,14 +1013,14 @@ sub scoreTitle {
 	};
 	my @ticks;
 	my $i = 0;
-	while ($i <= ((FIO::config('UI','starscore') or 0) ? 50 : 100)) {
+	while ($i <= ((FIO::config('Main','starscore') or 0) ? 50 : 100)) {
 		push(@ticks,{ value => $i, text => sprintf("%d",$i/10), });
 		$i += 10;
 	}
 	my $score = $qbox-> insert( ($$parms{circ} ? 'CircularSlider' : 'Slider') =>
 		value => ($$parms{value} or 0),
 		min => 0,
-		max => ((FIO::config('UI','starscore') or 0) ? 50 : 100),
+		max => ((FIO::config('Main','starscore') or 0) ? 50 : 100),
 		step => 10,
 		pageStep => 30,
 		vertical => 0,
@@ -1036,7 +1043,7 @@ sub scoreTitle {
 		$tabs->show();
 		$qbox->send_to_back();
 	});
-	unless (FIO::config('UI','autoscore')) {
+	unless (FIO::config('Main','autoscore')) {
 		$suggtxt->destroy();
 	} else {
 		$st = {
@@ -1055,28 +1062,13 @@ sub scoreTitle {
 		my $suggested = 0;
 		my $frames = 20; # because we're using gauges, we have to base it on 100, not 5 or 10.
 		if ($res) {
-			foreach (@$res) {
-#				printf("%03d: $$_[1] (%s)\n",$$_[0],($$_[2] or "?"));
-				my ($k,$n,$inc) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
-				my $val = 0;
-				if (FIO::config('UI','noanimate')) {
-					$val = $inc * $frames;
-				}
-				$suggested += $$_[1];
-				$scores++;
-				my $this = $barbox->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($tdata{max} > 12 ? ($tdata{max} > 24 ? ($tdata{max} > 36 ? 7 : 14) : 21) : 28),100],);
-				push(@$bars,$this);
-				pulseBars($bars,$frames);
-			}
-		}
-		while (@$bars) {
-			pulseBars($bars,$frames);
+			$scores = fillBoxwithBars($barbox,$scores,$bars,$frames,$tdata{max},$res);
 		}
 		$suggested /= $scores if ($scores);
-		$suggested *= 2 unless (FIO::config('UI','starscore'));
-		$suggested *= ((($tdata{max} or 0) or $scores) / $scores) if (FIO::config('UI','extendscore') and $scores);
+		$suggested *= 2 unless (FIO::config('Main','starscore'));
+		$suggested *= ((($tdata{max} or 0) or $scores) / $scores) if (FIO::config('Main','extendscore') and $scores);
 		$suggested *= (10/(FIO::config('Main','wowfactor') or 8.45)); # This is a ratio, so no need to adjust for 5-star scoring;
-		$suggested = 50 if ($suggested > 50 and FIO::config('UI','starscore'));
+		$suggested = 50 if ($suggested > 50 and FIO::config('Main','starscore'));
 		$suggested = 100 if ($suggested > 100);
 		$suggtxt->text(sprintf("Based on your rated $tdata{ptype}, $tdata{title} deserves a score of %.1f",$suggested));
 		if ($score->value == 0) {
@@ -1137,6 +1129,59 @@ sub askPortion {
 		$qbox->send_to_back();
 	});
 	$qbox->insert( Label => text => " ", name => 'spacer', pack => { fill => 'y', expand => 1},);
+}
+print ".";
+
+sub spreadRecent {
+	my ($dbh,$recent) = @_;
+	my $st = "SELECT DISTINCT %s,%s FROM %s ORDER BY %s DESC";
+	my %fields = (
+		man => ['pid','firstread','chapter','cid','cname','pname'],
+		ani => ['sid','firstwatch','episode','eid','ename','sname'],
+	);
+	my $max = (FIO::config('Main','reclimit') or 5);
+	$st = "$st LIMIT %d" if ($max);
+	$recent->empty();
+	foreach ('ani','man') {
+		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$max);
+print "Asking database: $cmd\n";
+		my $res = FlexSQL::doQuery(4,$dbh,$cmd);
+		if ($res) {
+			my $key = $_;
+			foreach (@$res) {
+				$cmd = "SELECT %s,%s,%ss FROM %s WHERE %s=?;";
+				print "$$_[0] was last active on $$_[1].\n";
+				$cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=?;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[2],$fields{$key}[0]);
+				my $subres = FlexSQL::doQuery(4,$dbh,$cmd,$$_[0]);
+				if ($subres) {
+					my $scores = fillBoxwithBars($barbox,0,$bars,$frames,,$res);
+				}
+			}
+		}
+	}
+}
+print ".";
+
+sub fillBoxwithBars {
+	my ($target,$scores,$bars,$frames,$max,$mylist) = @_;
+	die "fillBoxwithBars requires all of its arguments" unless ($max);
+		foreach (@$mylist) {
+#		printf("%03d: $$_[1] (%s)\n",$$_[0],($$_[2] or "?"));
+		my ($k,$n,$inc) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
+		my $val = 0;
+		if (FIO::config('UI','noanimate')) {
+			$val = $inc * $frames;
+		}
+		$suggested += $$_[1];
+		$scores++;
+		my $this = $target->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($max > 12 ? ($max > 24 ? ($max > 36 ? 7 : 14) : 21) : 28),100],);
+		push(@$bars,$this);
+		pulseBars($bars,$frames);
+	}
+	while (@$bars) {
+		pulseBars($bars,$frames);
+	}
+	return $scores;
 }
 print ".";
 
