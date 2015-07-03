@@ -1434,5 +1434,15 @@ sub slidebox {
 }
 print ".";
 
+sub makeRule {
+	my ($target,$ori,$px,$color) = @_;
+	$color = FIO::config('UI','rulecolor') unless defined $color;
+	$px = 1 unless defined $px;
+	$ori = 'h' unless (defined $ori and ($ori =~ m/^[hv]$/));
+	$size = ($ori eq 'h' ? [10,$px] : [$px,10]);
+	$target->insert( Widget => sizeMin => $size, pack => { fill => ($ori eq 'h' ? 'x' : 'y'), expand => 0, }, backColor => ColorRow::stringToColor($color));
+}
+print ".";
+
 print " OK; ";
 1;

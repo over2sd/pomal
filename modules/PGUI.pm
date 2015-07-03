@@ -420,9 +420,9 @@ sub populateMainWin {
 	}
 	$note->show();
 	$waiter->destroy();
-	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('UI','activerecent') ? getTabByCode('rec') : 0));
+	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('Recent','activerecent') ? getTabByCode('rec') : 0));
 	$$gui{status}->text("Ready.");
-	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('UI','activerecent'));
+	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('Recent','activerecent'));
 }
 print ".";
 
@@ -949,13 +949,13 @@ sub editPortion {
 		my $tibox = PGK::labelBox($qbox,"Title of $ptype",'h',boxex=>0); # show episode details form
 		$tibox->insert( InputLine => text => ($$defaults{title} or ''), onChange => sub { $$values{title} = $_[0]->text; });
 #		my $cbox = PGK::labelBox($qbox,"Objectionable content",'h',boxex=>0);
-		my $seen = ($ptype eq 'episode' ? "watched" : "read");
-		my $date = PGK::insertDateWidget($qbox,$$gui{mainwin},{label => "First $seen", default => ($$defaults{date} or Common::today()),boxex=>0, });
-		$$values{date} = $date->text;
-		$date->onClick( sub { $$values{date} = $date->text; });
 #		my $rbox = PGK::labelBox($qbox,"Appropriate for age",'h',boxex=>0);
 #		$rbox->insert( SpinEdit => value => ($$defaults{rating} or 0), min => 0, max => 100, step => 1, pageStep => 5, onChange => sub { $$values{rating} = $_[0]->value; }, );
 	}
+	my $seen = ($ptype eq 'episode' ? "watched" : "read");
+	my $date = PGK::insertDateWidget($qbox,$$gui{mainwin},{label => "First $seen", default => ($$defaults{date} or Common::today()),boxex=>0, });
+	$$values{date} = $date->text;
+	$date->onClick( sub { $$values{date} = $date->text; });
 	if ($dorate) { # If rateparts, show buttons to rate
 		my $score = $qbox-> insert( XButtons => name => 'score' ); # show rating buttons
 		$score->arrange("left"); # line up buttons horizontally
@@ -1023,8 +1023,8 @@ sub scoreTitle {
 		value => ($$parms{value} or 0),
 		min => 0,
 		max => ((FIO::config('Main','starscore') or 0) ? 50 : 100),
-		step => 10,
-		pageStep => 30,
+		step => 1,
+		pageStep => 10,
 		vertical => 0,
 		width => 400,
 		);
@@ -1070,10 +1070,12 @@ sub scoreTitle {
 		$suggested *= 2 unless (FIO::config('Main','starscore'));
 		$suggested *= ((($tdata{max} or 0) or $scores) / $scores) if (FIO::config('Main','extendscore') and $scores);
 		$suggested *= (10/(FIO::config('Main','wowfactor') or 8.45)); # This is a ratio, so no need to adjust for 5-star scoring;
-		$suggested = 50 if ($suggested > 50 and FIO::config('Main','starscore'));
-		$suggested = 100 if ($suggested > 100);
+		$suggested = 5 if ($suggested > 5 and FIO::config('Main','starscore'));
+		$suggested = 11 if ($suggested > 11);
 		$suggtxt->text(sprintf("Based on your rated $tdata{ptype}, $tdata{title} deserves a score of %.1f",$suggested));
 		if ($score->value == 0) {
+			$suggested = 10 if ($suggested > 10);
+			$suggested = int($suggested + 0.5) if (FIO::config('Main','intscore'));
 			$score->value(int($suggested * 10));
 		}
 	}
@@ -1141,12 +1143,12 @@ sub spreadRecent {
 		pub => ['pid','firstread','chapter','cid','cname','pname',"Manga",'lastreadc','lastreread'],
 		series => ['sid','firstwatch','episode','eid','ename','sname',"Anime",'lastwatched','lastrewatched'],
 	);
-	my $max = (FIO::config('Main','reclimit') or 5);
-	$st = "$st LIMIT %d" if ($max);
+	my $limit = (FIO::config('Recent','reclimit') or 5);
+	$st = "$st LIMIT %d" if ($limit);
 	$recent->empty();
 	$recent->insert( SpeedButton => text => "Refresh", onClick => sub { spreadRecent($dbh,$recent); });
 	foreach ('series','pub') {
-		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$max);
+		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$limit);
 #print "Asking database: $cmd\n";
 		my $res = FlexSQL::doQuery(4,$dbh,$cmd);
 		if ($res) {
@@ -1154,13 +1156,13 @@ sub spreadRecent {
 			my $key = $_;
 			foreach (@$res) {
 				my $date = $$_[1];
-				$cmd = sprintf("SELECT %s,%s,%ss,status,%s,%s FROM %s WHERE %s=?;",$fields{$key}[0],$fields{$key}[5],$fields{$key}[2],$fields{$key}[7],$fields{$key}[8],$key,$fields{$key}[0]);
+				$cmd = sprintf("SELECT %s,%s,%ss,status,%s,%s,score FROM %s WHERE %s=?;",$fields{$key}[0],$fields{$key}[5],$fields{$key}[2],$fields{$key}[7],$fields{$key}[8],$key,$fields{$key}[0]);
 				my $subres = FlexSQL::doQuery(3,$dbh,$cmd,$$_[0],$fields{$key}[0]);
 				unless ($subres) {
 					warn "Something went wrong with the query: $dbh->errstr";
 					next;
 				}
-				my ($bars,$frames,$max,$tname,$tprog,$status,$tid) = ([],20,$$subres{$$_[0]}{$fields{$key}[2] . "s"},$$subres{$$_[0]}{$fields{$key}[5]},$$subres{$$_[0]}{($$subres{$$_[0]}{status} == 3 ? $fields{$key}[8] : $fields{$key}[7])},$$subres{$$_[0]}{status},$$_[0]);
+				my ($bars,$frames,$max,$tname,$tprog,$status,$tid,$rated) = ([],20,$$subres{$$_[0]}{$fields{$key}[2] . "s"},$$subres{$$_[0]}{$fields{$key}[5]},$$subres{$$_[0]}{($$subres{$$_[0]}{status} == 3 ? $fields{$key}[8] : $fields{$key}[7])},$$subres{$$_[0]}{status},$$_[0],$$subres{$$_[0]}{score});
 				print "$tname was last active on $date.\n" if (FIO::config('Debug','v'));
 				my $lab = $recent->insert( Label => text => "$date: $tname", alignment => ta::Left, pack => {fill => 'x'});
 				my $row = $recent->insert( HBox => name => "$$_[0] row", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 2, pady => 11, );
@@ -1169,30 +1171,49 @@ sub spreadRecent {
 				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid);
 				my ($scores,$suggested) = (0,0);
 				if ($subres) {
-					($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
+					unless (FIO::config('Recent','hiddenepgraph')) {
+						($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
+					} else {
+						foreach (@$subres) {
+							my ($k,$n,$s) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
+							$suggested += $s;
+							$scores++;
+							$barbox->insert( Label => text => $s, hint => "$k ($n)", margin => 2);
+						}
+					}
 					$lab->text("($date) $tname - Total: $suggested" );
 				} else {
 					warn "Something went wrong with the query: $dbh->errstr";
 				}
-				$tprog++;
 				$row->insert( Widget => name => 'spacer', pack => {fill => 'x', expand => 1, }, sizeMax => [1000,10]);
 				my $uform = ($key eq "series" ? ($status == 3 ? 1 : 0 ) : ($status == 3 ? 3 : 2 ) );
-				$row->insert( SpeedButton =>
-					text => "Watch $fields{$key}[2] $tprog",
-					onClick => sub {
-						my $prog = incrementPortion($_[0],undef,$uform,$tid,$tname,$dbh,0);
-						# pull new part from part table
-#				$cmd = sprintf("SELECT %s,score,%s,%s FROM %s WHERE %s=? AND %s=?;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[1],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
-#				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid,$prog);
-						# add bar to barbox
-#					($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
-						# update total
-#					$lab->text("($date) $tname - Total: $suggested" );
-						$prog++;
-						$_[0]->text("Watch $fields{$key}[2] $prog");
-					},
-#					sizeMin => [100,15],
-				) unless ($status == 4 or $tprog == $max);
+				unless ($status == 4 or $tprog == $max) {
+					$tprog++;
+					$row->insert( SpeedButton =>
+						text => "Watch $fields{$key}[2] $tprog",
+						onClick => sub {
+							my $prog = incrementPortion($_[0],undef,$uform,$tid,$tname,$dbh,0);
+							# pull new part from part table
+#							$cmd = sprintf("SELECT %s,score,%s,%s FROM %s WHERE %s=? AND %s=?;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[1],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
+#							$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid,$prog);
+							# add bar to barbox
+#							($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7});
+							# update total
+#							$lab->text("($date) $tname - Total: $suggested" );
+							$prog++;
+							$_[0]->text("Watch $fields{$key}[2] $prog");
+						},
+#						sizeMin => [100,15],
+					);
+				} elsif ($rated == 0) {
+					my $score = $row->insert( SpeedButton =>
+						text => "Rate title",
+						font => applyFont('button'),
+						onClick => sub { scoreTitle($tid,$key,$_[0],$dbh); },
+					);					
+				} else {
+					$row->insert( Label => text => "Completed and scored");
+				}
 			}
 		}
 	}
