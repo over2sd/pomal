@@ -347,21 +347,33 @@ sub withoutMedian {
 print ".";
 
 sub getTabByCode { # for definitively finding page ID of recent, suggested tabs...
-	my $code = shift;
-	my $tabs = (getGUI("tablist") or []);
+	my ($code,$tablist) = @_;
+	my $tabs = ($tablist or getGUI("tablist") or []);
 	return Common::findIn($code,@$tabs);
 }
 print ".";
 
 sub passTabByCode {
-	my ($code1,$code2) = shift;
+	my ($code1,$code2) = @_;
 	my $tab = getTabByCode($code1);
-	print "Tab: $tab \n";
-	my $tabbar = PGK::getGUI('tabbar');
-	my @list = $tabbar->widgets_from_page($tab);
+#print "Tab: $tab \n";
+	my $target = PGK::getGUI('tabbar');
+	my @list = $target->widgets_from_page($tab);
 	foreach (@list) {
-		print "\n$_ - " . ($_->name or "unnamed") . ": " . ($_->text or "no text") . "\n";
+		$target = $_ if (ref($_) =~ m/Notebook/);
 	}
+	$tab = -1;
+	unless ($target == PGK::getGUI('tabbar')) {
+		@list = @{$target->tabs()};
+		my %stats = Sui::getStatHash($code1);
+		my $i = 0;
+		foreach my $text (@list) {
+			$tab = $i if $stats{$code2} eq $text;
+			$i++;
+		}
+		return $target->widgets_from_page($tab) unless $tab == -1;
+	}
+	return undef;
 }
 print ".";
 
@@ -624,21 +636,23 @@ sub addTitle {
 	$$gui{tabbar}->hide();
 	$box->empty();
 	my $tabstr = ($tab eq 'man' ? ' manga' : 'n anime');
+	my $see = ($tab eq 'man' ? "read" : "watch");
 	$box->insert( Label => text => "Add a$tabstr title", font => applyFont('bighead'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
 # status TINYINT DEFAULT 0,
 	my $titlestat = $box->insert( XButtons => name => "status", pack => {fill=>'none',expand=>0});
 	$titlestat->arrange('left');
-	my @presets = (0,Sui::getStatHash($tab),'rew',"Rewatching");
+	my @presets = (0,Sui::getStatHash($tab),'rew',"Re${see}ing");
 	$titlestat-> build("Status:",@presets);
 	my $row0 = $box->insert( HBox => name => 'row0');
 	$row0->insert( Label => text => "Title", sizeMin => [150,20], pack => { fill => 'x', expand => 0 },);
-	$row0->insert( Label => text => "Episodes", sizeMin => [100,20]);
-	$row0->insert( Label => text => "Watched", sizeMin => [100,20]);
+	$row0->insert( Label => text => ($tab eq 'man' ? "Chapters" : "Episodes"), sizeMin => [100,20]);
+	$row0->insert( Label => text => "Parts Seen", sizeMin => [100,20]);
 	my $row1 = $box->insert( HBox => name => 'row1');
 	my $name = $row1->insert( InputLine => text => "", name => 'sname', sizeMin => [150,20], hint => "The title of the anime", pack => { fill => 'x', expand => 0 },);
-	my $eps = $row1->insert( SpinEdit => value => 0, name => 'episodes', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
-# rename to lastrewatched if (completed or) rewatching
-	my $lastep = $row1->insert( SpinEdit => value => 0, name => 'lastwatched', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
+	$name->name('pname') if $tab eq 'man';
+	my $parts = $row1->insert( SpinEdit => value => 0, name => 'episodes', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
+	$parts->name('chapters') if $tab eq 'man';
+	my $lastpart = $row1->insert( SpinEdit => value => 0, name => 'lastwatched', min => 0, max => $partmax, step => 1, pageStep => 10, sizeMin => [100,20]);
 	my $row2 = $box->insert( HBox => name => 'row2');
 	$row2->insert( Label => text => "Started", sizeMin => [150,20]);
 	$row2->insert( Label => text => "Ended", sizeMin => [150,20]);
@@ -678,28 +692,28 @@ sub addTitle {
 		$_[0]->enabled(0);
 		my %data; # hashify
 		if ($titlestat->value eq 'com') {
-			$lastep->value = $eps->value;
+			$lastpart->value = $parts->value;
 		}
-		foreach ($name, $started, $ended, $score, $stype, $note, $tags) {
+		foreach ($name, $started, $ended, $score, $stype, $note, $tags, $parts) {
 			$data{$_->name} = $_->text;
 		}
-		foreach ($eps, $seentimes, ) {
+		foreach ($parts, $seentimes, ) {
 			$data{$_->name} = $_->value;
 		}
 		if ($titlestat->value eq 'rew') {
-			$data{lastrewatched} = $lastep->value;
-			$data{lastwatched} = $eps->value;
+			$data{($tab eq 'man' ? 'lastreread' : 'lastrewatched')} = $lastpart->value;
+			$data{($tab eq 'man' ? 'lastreadc' : 'lastwatched')} = $parts->value;
+		} else {
+			$data{($tab eq 'man' ? 'lastreadc' : 'lastwatched')} = $lastpart->value;
 		}
 		$data{ended} = '0000-00-00' if ($data{ended} eq $data{started});
 		$data{score} = int($data{score}) * 10;
 		my %stats = Sui::getStatIndex();
 		$data{status} = $stats{$titlestat->value};
 		$data{sid} = -1;
-		my $tabid = passTabByCode($tab,$titlestat->value);
-print "Tab: $tabid\n";
-		
-die "\n";
+		my $target = passTabByCode($tab,$titlestat->value);
 		my $ttype = ($tab eq 'man' ? 'pub' : 'series');
+die "\n";
 		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'usr',$ttype,\%data);
 		$data{sid} = $realid;
 		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,$ttype,1,{idneeded => 1}); # prepare
@@ -707,6 +721,8 @@ die "\n";
 		$error = FlexSQL::doQuery(2,$dbh,$cmd,@parms); # submit
 		$error = Sui::addTags($dbh,substr($ttype,0,1),$data{sid},$data{tags});
 		$$gui{tabbar}->show();
+		my $h = {"$realid" => \%data };
+		buildTitleRows($tab,$target,$h,0,$realid);
 		# display
 		$box->empty();
 		$box->send_to_back();
