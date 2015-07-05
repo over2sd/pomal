@@ -505,18 +505,23 @@ sub buildTitleRows {
 			$cb->backColor($headcolor);
 		} else {
 			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
-			my $rew = $rbox->insert(Label => text => ($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "   ")); # put in the rewatching status
 			$rbox->arrange();
 #			applyFont('body',$rew);
+			my $icon = Prima::Image->new( size => [16,16]);
 			unless ($record{status} == 4) { # No move button for completed page
-				my $status = $record{status};
-				$rbox->insert( Label =>
-					text => "m",
-					backColor => $buttoncolor,
-#					onClick => sub { chooseStatus($rew,\$status,$k,$titletype); },
+				$icon->load("modules/move.png") or print "Could not load icon";
+			} else { # but there might some day be a "Rewatch this show" button here
+				$icon->load("modules/reset.png") or print "Could not load icon";
+			}
+			my $status = $record{status};
+			$rbox->insert( SpeedButton =>
+				sizeMax => [17,17],
+				backColor => $buttoncolor,
+				image => $icon,
+#			onClick => sub { unless ($record{status} == 4) { chooseStatus($rew,\$status,$k,$titletype); } else { setStatus(); }},
 		# put in button(s) for moving to another status? TODO later
-				);
-			} # but there might some day be a "Rewatch this show" button here
+			);
+			my $rew = $rbox->insert(Label => text => ($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "   ")); # put in the rewatching status
 			$rbox->sizeMin($widths[1],$rbox->height) if (defined $widths[1] and $widths[1] > 0);
 		}
 		if ($titletype eq 'head') {
@@ -550,7 +555,7 @@ sub buildTitleRows {
 				applyFont('progress',$percl);
 			}
 			# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
-			unless ($record{status} == 4) {
+			unless ($record{status} == 4 or $record{status} == 5) {
 				my $incbut = $pchabox->insert( SpeedButton =>
 					text => "+",
 					backColor => $buttoncolor,
@@ -740,17 +745,18 @@ sub incrementPortion {
 		return;
 	}
 	unless ($value >= $max) { $value++; } else { return; }
-	my $result = updatePortion($ttype,$titleid,$value,$updater); # call updatePortion
+	my $complete = 0;
+	if (defined $value and $value == $max) { # ask to set complete if portions == total
+# TODO: make this happen unless option says not to
+		$complete = 1;
+	}
+	my $result = updatePortion($ttype,$titleid,$value,$updater,$complete); # call updatePortion
 	if ($result == 0) { warn "Oops!";
 	} else {
 		setProgress($target,$volume,$value,$max) if (defined $target);
 	}
 	editPortion($title,$titleid,$value, ($volume ? 'volume' : ($ttype > 1 ? 'chapter' : 'episode')),$volno);
-	if (defined $value and $value == $max) { # ask to set complete if portions == total
-		warn "Not asking to move to Completed, because it hasn't been coded! Smack the coder";
-	} else {
-		$caller->enabled(1);
-	}
+	$caller->enabled(1);
 	return $value;
 }
 print ".";
@@ -788,7 +794,7 @@ sub getPortions {
 print ".";
 
 sub updatePortion {
-	my ($uptype,$titleid,$value,$uph) = @_;
+	my ($uptype,$titleid,$value,$uph, $complete) = @_;
 	if ((config('DB','conserve') or 'mem') eq 'net') { # updating objects
 		my $sobj = $uph; # get object
 		# check if REF is for an Anime or Manga object
@@ -807,6 +813,7 @@ sub updatePortion {
 		my $data = {};
 		$$data{$criteria[$uptype]} = $value;
 		$$data{($uptype < 2 ? "sid" : "pid" )} = $titleid;
+		$$data{status} = 4 if $complete;
 		my ($error,$st,@parms) = FlexSQL::prepareFromHash($data,($uptype < 2 ? "series" : "pub" ),1);
 		unless ($error) {
 			my $res = FlexSQL::doQuery(2,$dbh,$st,@parms); # update SQL table

@@ -9,6 +9,7 @@ Perhaps disambiguation list should be loaded from an external file, so the user 
 = Recent activity buttons for five most recent shows
 Display/edit of tags for episode/chapter?
 Display/edit of dates started/completed
+Social media integration
 
 Roadmap
 =======
@@ -19,12 +20,15 @@ v0.1:
 -----
 Prima GUI to same point as old GTK2 GUI.
 Manual entry of titles
-Options: mask row type
-Options: content the user cares about (don't ding e.g. violence, if user isn't bothered by it)
-Content mapping for series, possibly episodes
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
 FIX: insertDateWidget premature closure
+
+v0.2:
+-----
+Options: mask row type
+Options: content the user cares about (don't ding e.g. violence, if user isn't bothered by it)
+Content mapping for series, possibly episodes
 
 v0.3:
 -----
