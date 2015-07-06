@@ -116,7 +116,7 @@ sub fillPage {
 #		applyFont('label',$labels{$_});
 ##		print "Looking for " . $typ . "/" . $_ . "...";
 		my $table = $target->insert( VBox =>
-			name => $$labeltexts[$page],
+			name => "${_}table",
 			backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
 ###	TODO: push table to $gui's list of tables
 		my $tlist = { 'h' => {
@@ -188,7 +188,7 @@ sub getTabByCode { # for definitively finding page ID of recent, suggested tabs.
 }
 print ".";
 
-sub passTabByCode {
+sub passTableByCode {
 	my ($code1,$code2) = @_;
 	my $tab = getTabByCode($code1);
 #print "Tab: $tab \n";
@@ -206,7 +206,11 @@ sub passTabByCode {
 			$tab = $i if $stats{$code2} eq $text;
 			$i++;
 		}
-		return $target->widgets_from_page($tab) unless $tab == -1;
+		my @w = $target->widgets_from_page($tab);
+		return undef if $tab == -1;
+		foreach ($w[0]->get_widgets()) {
+			return $_ if $_->name eq "${code2}table";
+		}
 	}
 	return undef;
 }
@@ -337,7 +341,7 @@ sub buildTitleRows {
 			$title->backColor($headcolor);
 		}
 		if ($titletype eq 'head') {
-			my $cb = $row->insert( Label => text => "", pack => { fill => 'none', expand => 0, }, );
+			my $cb = $row->insert( Label => text => "Status", pack => { fill => 'none', expand => 0, }, );
 			$cb->sizeMin($widths[1],$cb->height) if (defined $widths[1] and $widths[1] > 0);
 			$cb->backColor($headcolor);
 		} else {
@@ -376,25 +380,29 @@ onClick => sub { devHelp($target,"Moving titles to new status");},
 			my $pvbox = $row->insert( VBox => backColor => $backcolor);
 			my $pchabox = $pvbox->insert( HBox => name => 'partbox', backColor => $backcolor);
 		# put in the number of watched/episodes (button) -- or chapters
-			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
+			$record{chapters} = 0 unless defined $record{chapters};
+			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . (($titletype eq 'series' ? $record{episodes} : $record{chapters}) or "-");
 			my $pbut = $pchabox->insert( Label =>
 				name => 'partlabel',
 				text => $pprog,
 				pack => { expand => 1, fill => 'both', },
-					# link the button to a dialog asking for a new value
 				onClick => sub { askPortion($pvbox,$updateform,$k,$updater,$record{title},($record{status} == 3));},
 			);
 			applyFont('button',$pbut);
-			# put in a label giving the % completed (using watch or rewatched episodes)
-			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100) * 100;
-			# read config option and display percentage as either a label or a progress bar
-			if (config('UI','graphicprogress')) {
-				my $percb = $pvbox->insert( Gauge => name => 'partbar', size => [100,24], value => $rawperc, pack => { expand => 0, fill => 'none', },);
-				applyFont('progress',$percb);
-			} else {
-				my $pertxt = sprintf("%.2f%%",$rawperc);
-				my $percl = $pvbox->insert( Label => name => 'parttxt', text => $pertxt);
-				applyFont('progress',$percl);
+			unless ($record{status} == 4) { # to save processing power, no full gauges
+				# put in a label giving the % completed (using watch or rewatched episodes)
+				my $num = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} ));
+				my $div = (($titletype eq 'series' ? $record{episodes} : $record{chapters} ));
+				my $rawperc = ($div ? ($num / $div * 100) : ($num ? int(rand(99)) : 0));
+				# read config option and display percentage as either a label or a progress bar
+				if (config('UI','graphicprogress')) {
+					my $percb = $pvbox->insert( Gauge => name => 'partbar', size => [100,24], value => $rawperc, pack => { expand => 0, fill => 'none', },);
+					applyFont('progress',$percb);
+				} else {
+					my $pertxt = ($div ? sprintf("%.2f%%",$rawperc/100) : "??.??%");
+					my $percl = $pvbox->insert( Label => name => 'parttxt', text => $pertxt);
+					applyFont('progress',$percl);
+				}
 			}
 			# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
 			unless ($record{status} == 4 or $record{status} == 5) {
@@ -515,22 +523,18 @@ sub addTitle {
 	$row4->insert( Label => text => "Type", sizeMin => [50,20]);
 	my $row5 = $box->insert( HBox => name => 'row5');
 	my $score = $row5->insert( InputLine => name => 'score', text => '0', sizeMin => [100,20]);
-# seentimes should be enabled only if rewatching or completed.
-# seentimes INT UNSIGNED DEFAULT 0,
 	my $seentimes = $row5->insert( SpinEdit => name => 'seentimes', value => 0, min => 0, max => 100, step => 1, pageStep => 5, sizeMin => [100,20], enabled => 0, );
 	$titlestat->onChange(sub { unless ($titlestat->value eq 'com' or $titlestat->value eq 'rew') { $seentimes->enabled(0); $seentimes->value(0); } else { $seentimes->enabled(1); } });
 # content INT(35) UNSIGNED,
 	#my $content;
 # rating TINYINT UNSIGNED,
 	#my $rating;
-# note VARCHAR(1000),
 	my $tags = $row5->insert( InputLine => name => 'tags', text => '', sizeMin => [250,20]);
-# stype VARCHAR(30)
 	my $stype = $row5->insert( InputLine => text => 'TV', sizeMin => [50,20]); # TV, ONA, etc.
 	my $row6 = $box->insert( HBox => name => 'row6');
 	$row6->insert( Label => text => "Notes", sizeMin => [500,20]);
 	my $row7 = $box->insert( HBox => name => 'row7');
-	my $note = $row7->insert( InputLine => name => 'notes', text => '', sizeMin => [500,20]);
+	my $note = $row7->insert( InputLine => name => 'note', text => '', sizeMin => [500,20]);
 
 	my $buttons = $box->insert( HBox => name => 'buttons', pack => { fill => 'x', expand => 1, });
 	$buttons->insert( Button => text => "Cancel", onClick => sub { $box->empty(); $box->send_to_back(); $$gui{tabbar}->show(); $$gui{status}->text("Title addition cancelled."); });
@@ -553,24 +557,33 @@ sub addTitle {
 		} else {
 			$data{($tab eq 'man' ? 'lastreadc' : 'lastwatched')} = $lastpart->value;
 		}
-		$data{ended} = '0000-00-00' if ($data{ended} eq $data{started});
+		delete $data{ended} if ($data{ended} eq $data{started});
 		$data{score} = int($data{score}) * 10;
 		my %stats = Sui::getStatIndex();
 		$data{status} = $stats{$titlestat->value};
-		$data{sid} = -1;
-		my $target = passTabByCode($tab,$titlestat->value);
+		my $tid = ($tab eq 'ani' ? 'sid' : 'pid');
+		$data{$tid} = -1;
+		my $target = passTableByCode($tab,$titlestat->value);
+		die "No target" unless defined $target;
 		my $ttype = ($tab eq 'man' ? 'pub' : 'series');
-die "\n";
 		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'usr',$ttype,\%data);
-		$data{sid} = $realid;
+		if ($found) {
+			print "[I] Title to be added was existing record $realid. Cancelling.";
+			$$gui{tabbar}->show();
+			$box->empty();
+			$box->send_to_back();
+			return;
+		}
+		$data{$tid} = $realid;
 		my ($error,$cmd,@parms) = FlexSQL::prepareFromHash(\%data,$ttype,1,{idneeded => 1}); # prepare
 		if ($error) { print "e: $error c: $cmd p: " . join(",",@parms) . "\n"; }
 		$error = FlexSQL::doQuery(2,$dbh,$cmd,@parms); # submit
-		$error = Sui::addTags($dbh,substr($ttype,0,1),$data{sid},$data{tags});
+		$error = Sui::addTags($dbh,substr($ttype,0,1),$data{$tid},$data{tags});
 		$$gui{tabbar}->show();
+		$data{title} = $data{(substr($ttype,0,1) eq 'p' ? 'pname' : 'sname')};
 		my $h = {"$realid" => \%data };
-		buildTitleRows($tab,$target,$h,0,$realid);
-		# display
+		my @rows = $target->get_widgets();
+		buildTitleRows($ttype,$target,$h,@rows -1,$realid); # display
 		$box->empty();
 		$box->send_to_back();
 	}, );
@@ -860,7 +873,7 @@ sub scoreTitle {
 		'series' => 'sid',
 		'pub' => 'pid',
 	};
-	$st = $$st{$ttype} or die "Bad table name"; # no sympathy for bad tables!
+	$st = $$st{$ttype} or die "Bad table name $ttype"; # no sympathy for bad tables!
 	$key = $$key{$ttype}; # already validated in previous line.
 	unless (defined $dbh) { $dbh = FlexSQL::getDB() or sayBox(getGUI('mainWin'),"scoreTitle couldn't get database handler."); }
 	return unless $dbh;
@@ -1144,6 +1157,36 @@ No return value.
 sub devHelp {
 	my ($target,$task) = @_;
 	sayBox($target,"$task is on the developer's TODO list.\nIf you'd like to help, check out the project's GitHub repo at http://github.com/over2sd/pomal.");
+}
+print ".";
+
+sub checkTitle {
+	my ($dbh,$name,$safetable) = @_;
+	$safetable =~ m/([ps])/;
+	my $x = $1;
+# TODO: Allow different patterns via option
+	$name =~ m/([Tt]he )?([A-Za-z\w]+)/;
+	my $id = -1;
+	my $likename = $2;
+	my $target = getGUI("questionparent");
+# yesnoXB($target);
+	my $st = "SELECT ${x}id,${x}name,status FROM $safetable WHERE ${x}name LIKE ?;";
+	my $res = FlexSQL::doQuery(4,$dbh,$st,"$2%");
+	if (@$res) {
+		$target->empty();
+		$target->insert( Label => text => "Is one of the following titles the same as $name?" );
+		my $stats = Sui::getStatArray(($x = 'p' ? 'man' : 'ani'));
+		foreach (@$res) {
+			my ($i,$t,$s) = @$_;
+			$s = $$stats[$s];
+			$target->insert( SpeedButton => text => "$t ($s)", onClick => sub { $id = $i; });
+		}
+		$target->insert( SpeedButton => text => "No, $name is a new title.", onClick => sub { $id = -2; });
+		while ($id == -1 and defined $target) { # wait until button pressed or target destroyed
+			PGK::Pwait(1);
+		}
+	}
+	return $id;
 }
 print ".";
 

@@ -71,12 +71,12 @@ sub getTitlesByStatus {
 print ".";
 
 # Status hashes
-sub getStatHash { my $typ = shift; return (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped",rew=>"Re" . ($typ eq 'man' ? "read" : "watch") . "ing"); } # could be given i18n
+sub getStatHash { my $typ = shift; return (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped"); } # could be given i18n
 sub getStatOrder { return qw( wat onh ptw com drp ); }
 sub getStatIndex { return ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 ); }
 sub getStatArray {
 	my $sa = [];
-	my %stats = getStatHash(shift);
+	my %stats = (getStatHash(shift),rew=>"Re" . ($typ eq 'man' ? "read" : "watch") . "ing");
 	foreach (qw( ptw wat onh rew com drp )) {
 		push(@$sa,$stats{$_});
 	}
@@ -194,14 +194,10 @@ sub getRealID {
 	$idtable = 'extpid' if $table eq 'pub';
 	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
 	my $idtable = $dbh->quote_identifier($idtable);
-	if ($column eq 'usr') {
-# TODO: Before creating a new row, check for name to see if it was imported from another tracking site
-# $data{$name} =~ m/([Tt]he )?([A-Za-z\w]+)/;
-# $likename = $2;
-# print "($1) '$2' ";
-# $target->insert( Label => text => "Is one of the following shows the same as $data{$name}?" );
-# yesnoXB($target);
-		my $idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
+	if ($column eq $dbh->quote_identifier('usr')) {
+		my $idnum = PGUI::checkTitle($dbh,$$data{$keys[0]},$safetable);
+		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
+		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
 		print "[I] Gave new ID#$idnum to user-entered title. " if FIO::config('Debug','v') > 4;
 		return (0,$idnum);
 	} elsif (FlexSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $idtable WHERE $column=?",$$data{extid})) { # check to see if sid already present in DB
@@ -209,13 +205,9 @@ sub getRealID {
 		print "[I] Found existing ID#$idnum..." if FIO::config('Debug','v') > 4;
 		return (1,$idnum);
 	} else {
-# TODO: Before creating a new row, check for name to see if it was imported from another tracking site
-# $data{$name} =~ m/([Tt]he )?([A-Za-z\w]+)/;
-# $likename = $2;
-# print "($1) '$2' ";
-# $target->insert( Label => text => "Is one of the following shows the same as $data{$name}?" );
-# yesnoXB($target);
-		my $idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
+		my $idnum = PGUI::checkTitle($dbh,$$data{$keys[0]},$safetable);
+		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
+		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
 		my $err = FlexSQL::doQuery(2,$dbh,"INSERT INTO $idtable ($safeid,$column) VALUES (?,?)",$idnum,$$data{extid});
 		die "Error: $err" if $error;
 		print "[I] Gave new ID#$idnum to MAL title#$$data{extid}. " if FIO::config('Debug','v') > 4;

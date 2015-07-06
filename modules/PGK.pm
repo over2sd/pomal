@@ -927,14 +927,11 @@ sub Pdie {
 print ".";
 
 sub Pwait {
-	# Placeholder for if I ever figure out how to do a non-blocking sleep function in Prima
 	my $duration = shift or 1;
 	my $start = time();
 	my $end = ($start+$duration);
 	while ($end > time()) {
-#		while (events_pending()) {
-			$::application->yield();
-#		}
+		$::application->yield();
 		# 10ms sleep.
 		# Not much, but prevents processor spin without making waiting dialogs unresponsive.
 		select(undef,undef,undef,0.01);

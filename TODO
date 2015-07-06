@@ -19,11 +19,12 @@ Items marked with = are already completed.
 v0.1:
 -----
 Prima GUI to same point as old GTK2 GUI.
-Manual entry of titles
+= Manual entry of titles
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
 FIX: insertDateWidget premature closure
 Add button for each unrated episode in series rating screen to rate that episode
+Check whether title is a long runner before putting up boxes of bars or buttons for each unrated episode
 
 v0.2:
 -----
