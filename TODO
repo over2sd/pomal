@@ -23,6 +23,7 @@ Manual entry of titles
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
 FIX: insertDateWidget premature closure
+Add button for each unrated episode in series rating screen to rate that episode
 
 v0.2:
 -----

@@ -56,7 +56,7 @@ sub getTitlesByStatus {
 	my %rows;
 	my @parms;
 	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
-	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched" : "lastreread,lastreadc") . " FROM ";
+	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched,seentimes" : "lastreread,lastreadc,readtimes") . " FROM ";
 	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
 ##		TODO here: max for movies/stand-alone manga
 	$st = $st . " LIMIT ? " if exists $exargs{limit};
@@ -71,9 +71,17 @@ sub getTitlesByStatus {
 print ".";
 
 # Status hashes
-sub getStatHash { my $typ = shift; return (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped"); } # could be given i18n
+sub getStatHash { my $typ = shift; return (wat=>($typ eq 'man' ? "Read" : "Watch") . "ing",onh=>"On-hold",ptw=>"Plan to " . ($typ eq 'man' ? "Read" : "Watch"),com=>"Completed",drp=>"Dropped",rew=>"Re" . ($typ eq 'man' ? "read" : "watch") . "ing"); } # could be given i18n
 sub getStatOrder { return qw( wat onh ptw com drp ); }
 sub getStatIndex { return ( ptw => 0, wat => 1, onh => 2, rew => 3, com => 4, drp => 5 ); }
+sub getStatArray {
+	my $sa = [];
+	my %stats = getStatHash(shift);
+	foreach (qw( ptw wat onh rew com drp )) {
+		push(@$sa,$stats{$_});
+	}
+	return $sa;
+}
 print ".";
 
 sub getOpts {

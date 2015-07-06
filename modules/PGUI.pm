@@ -3,7 +3,7 @@ use strict; use warnings;
 package PGUI;
 print __PACKAGE__;
 
-use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget);
+use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ScrollWidget ImageViewer);
 $::wantUnicodeInput = 1;
 
 use PGK qw( VBox Table Pdie Pwait applyFont getGUI );
@@ -29,171 +29,6 @@ sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 		]],
 	];
 	return $menus;
-}
-print ".";
-
-sub buildTableRows {
-	my ($titletype,$target,$tlist,$rownum,@keys) = @_;
-#print "\nbTR($titletype,$target,$tlist,$rownum,[".join(',',@keys)."])\n";
-	my $numbered = (config('UI','linenos') ? 1 : 0);
-	my $rowshown = $rownum;
-	my $headcolor = "#CCCCFF";
-	my $backcolor = "#EEF";
-	my $buttoncolor = "#aac";
-	$headcolor = convertColor(config('UI','headerbg') or $headcolor) if $titletype eq 'head';
-	$backcolor = convertColor(config('UI','listbg') or $backcolor);
-	$buttoncolor = convertColor(config('UI','buttonbg') or $buttoncolor);
-	# each item in hash is a hash
-	my @rows;
-	my $needrows = scalar @keys + $rownum;
-	my $bodyfont = (defined config('Font','body') ? 1 : 0);
-	my $updater;
-#	if ($bodyfont) { applyFont($target,0); }
-	unless ((config('DB','conserve') or '') eq 'net') {
-		$updater = FlexSQL::getDB();
-	} else {
-		warn "Conserving net traffic is not yet supported"; $updater = PomallSQL::getDB();
-	}
-	foreach my $k (@keys) { # loop over list
-		$rownum++; $rowshown++;
-##		print "Building row for title $k...\n";
-		my %record = %{$$tlist{$k}};
-		if ($titletype eq 'head') {
-			if ($numbered) {
-				my $nolabel = $target->place_in_table(0,0, Label => text => "#");
-#				if ($bodyfont) { applyFont($nolabel,0); }
-				$nolabel->backColor($headcolor);
-				$rownum--;
-			}
-		} else {
-			my $nolabel = $target->place_in_table($rownum,0, Label => text => ($numbered ? "$rowshown" : ""));
-#			if ($bodyfont) { applyFont($nolabel,0); }
-		}
-		my $title = $target->place_in_table($rownum,0 +$numbered, Label => text => Common::shorten($record{title},30)); # put in the title of the series
-#		$title->set_alignment(0.0,0.1);
-#		if ($bodyfont) { applyFont($title,0); }
-		if ($titletype eq 'head') {
-			$title->backColor($headcolor);
-			$title->place( fill => 'x');
-		}
-		if ($titletype eq 'head') {
-			my $cb = $target->place_in_table($rownum,1 + $numbered, Label => text => "", place => { fill => 'none', expand => 0, }, );
-			$cb->backColor($headcolor);
-		} else {
-			my $rbox = $target->place_in_table($rownum,1 + $numbered, HBox => backColor => $backcolor, place => { expand => 0, fill => 'x', }, );
-			my $rew = $rbox->insert(Label => text => ($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "---")); # put in the rewatching status
-			$rbox->arrange();
-#			if ($bodyfont) { applyFont($rew,0); }
-			unless ($record{status} == 4) { # No move button for completed page
-				my $status = $record{status};
-				$rbox->insert( Label =>
-					text => "m",
-					backColor => $buttoncolor,
-#					pack => { fill => 'none', expand => 0, side => "top", },
-#					onClick => sub { chooseStatus($rew,\$status,$k,$titletype); },
-		# put in button(s) for moving to another status? TODO later
-				);
-			} # but there might some day be a "Rewatch this show" button here
-		}
-		if ($titletype eq 'head') {
-			my $plabel = $target->place_in_table($rownum,2 + $numbered, Label => text => "Progress");
-#			if ($bodyfont) { applyFont($plabel,0); }
-			$plabel->backColor($headcolor);
-		} else {
-			my $updateform = ($titletype eq "series" ? ($record{status} == 3 ? 1 : 0 ) : ($record{status} == 3 ? 3 : 2 ) );
-			my $pvbox = $target->place_in_table($rownum,2 + $numbered, VBox => backColor => $backcolor);
-			my $pchabox = $pvbox->insert(HBox => backColor => $backcolor);
-		# put in the number of watched/episodes (button) -- or chapters
-			my $pprog = ($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" )) . "/") . ($titletype eq 'series' ? "$record{episodes}" : "$record{chapters}" );
-			my $pbut = $pchabox->insert( Label =>
-				text => $pprog
-#				onClick => sub { askPortion($pvbox,$updateform,$k,$updater);},
-			);
-#			applyFont($pbut,2);
-		# link the button to a dialog asking for a new value
-		# put in a label giving the % completed (using watch or rewatched episodes)
-			my $rawperc = ($titletype eq 'series' ? ($record{status} == 3 ? $record{lastrewatched} : $record{lastwatched} ) : ($record{status} == 3 ? $record{lastreread} : $record{lastreadc} )) / (($titletype eq 'series' ? $record{episodes} : $record{chapters} ) or 100) * 100;
-		# read config option and display percentage as either a label or a progress bar
-			if (config('UI','graphicprogress')) {
-				my $percb = $pvbox->insert( Gauge => size => [100,24], value => $rawperc);
-### TODO: figure out how to resize this widget
-#				applyFont($percb,2);
-			} else {
-				my $pertxt = sprintf("%.2f%%",$rawperc);
-				my $percl = $pvbox->insert( Label => text => $pertxt);
-#				applyFont($percl,2);
-			}
-		# put in a button to increment the number of episodes or chapters (using watch or rewatched episodes)
-			unless ($record{status} == 4) {
-				my $font = FontRow::stringToFont(config('Font','progress') or "");
-				my $incbut = $pchabox->insert( SpeedButton =>
-					text => "+",
-					backColor => $buttoncolor,
-					font => $font,
-					autoHeight => 1,
-					autowidth => 1,
-					minSize => [10,10],
-					pack => { fill => "none", expand => 0, },
-#					onClick => sub { incrementPortion($pvbox,$updateform,$k,$updater); },
-				);
-#				applyFont($incbut,2);
-			}
-		# if manga, put in the number of read/volumes (button)
-			if ($titletype eq 'pub') {
-				my $pvolbox = $pvbox->insert(HBox => backColor => $backcolor);
-				# put in the number of watched/episodes (button) -- or chapters
-				my $vbut = $pvolbox->insert( Label =>
-					text => "$record{lastreadv}/$record{volumes}"
-#					onClick => sub { askPortion($pvbox,$upform,$k,$updater); },
-				);
-#				applyFont($vbut,2);
-				# link the button to a dialog asking for a new value
-				my $upform = ($record{status} == 3 ? 5 : 4 );
-				# put in a button to increment the number of volumes (using read or reread volumes)
-				unless ($record{status} == 4) {
-					my $font = FontRow::stringToFont(config('Font','progress') or "");
-					my $incvbut = $pvolbox->insert( SpeedButton =>
-						text => "+",
-						backColor => $buttoncolor,
-						font => $font,
-						minSize => [10,10],
-						pack => { fill => "none", expand => 0, },
-#						onClick => sub { incrementPortion($pvbox,$upform,$k,$updater) },
-					);
-#					applyFont($incvbut,2);
-				}
-			}
-		}
-		if ($titletype eq 'head') {
-#			my $tags = Gtk2::Label->new("Tags");
-#			$tags->show();
-#			if ($bodyfont) { applyFont($tags,0); }
-#			my $cb = Gtk2::EventBox->new();
-#			$cb->add($tags);
-#			$cb->show();
-#			$cb->modify_bg("normal",Gtk2::Gdk::Color->parse(config('UI','headerbg') or $headcolor));
-#			$target->attach($cb,4,5,0,1,qw( fill ),qw( fill ),0,0);
-		} else {
-#			my $tags = Gtk2::Button->new("Show/Edit tags"); # put in the tag list (button?)
-## use $k for callback; it should contain the series/pub id #.
-#			$tags->show();
-#			$target->attach($tags,4,5,$rownum,$rownum+1,qw( shrink ),qw( shrink),1,0);
-		}
-		if ($titletype eq 'head') {
-			my $score = $target->place_in_table($rownum,3 + $numbered, Label =>
-				text => $record{score},
-				backColor => convertColor($headcolor),
-			);
-#			if ($bodyfont) { applyFont($score,0); }
-		} else {
-			my $score = $target->place_in_table($rownum,3 + $numbered, SpeedButton =>
-				text => sprintf("%.1f",$record{score} / 10), # put in the score
-#				onClick => sub { scoreSlider($k,$titletype,$updater) },
-			);
-		}
-		# put in a button to edit the title/list its volumes/episodes
-	} # end foreach my $k (@keys)
-#	return @rows;
 }
 print ".";
 
@@ -473,6 +308,8 @@ sub buildTitleRows {
 	} else {
 		warn "Conserving net traffic is not yet supported"; $updater = PomallSQL::getDB();
 	}
+	my $statlabels = Sui::getStatArray($titletype);
+	my $movetext = "Move to a different status";
 	foreach my $k (@keys) { # loop over list
 		$rownum++; $rowshown++;
 ##		print "Building row for title $k...\n";
@@ -506,22 +343,27 @@ sub buildTitleRows {
 		} else {
 			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
 			$rbox->arrange();
-#			applyFont('body',$rew);
+			my $staticon = Prima::Image->new( size => [16,16]);
+			my $status = $record{status};
+			$staticon->load("modules/status$status.png") or print "Could not load icon";
+			my $rew = $rbox->insert(ImageViewer => sizeMax => [23,17], backColor => $backcolor, alignment => ta::Left, valignment => ta::Top, image => $staticon, hint => $$statlabels[$status]);
+			my $seen = ($titletype eq 'series' ? 'seentimes' : 'readtimes');
+			$rbox->insert( Label => text => "x" . ($record{$seen} + 1)) if ($record{status} == 4 and $record{$seen} > 0);
 			my $icon = Prima::Image->new( size => [16,16]);
-			unless ($record{status} == 4) { # No move button for completed page
+			unless ($status == 4) { # No move button for completed page
 				$icon->load("modules/move.png") or print "Could not load icon";
-			} else { # but there might some day be a "Rewatch this show" button here
+			} else { # Instead, make "Rewatch this show" button
 				$icon->load("modules/reset.png") or print "Could not load icon";
 			}
-			my $status = $record{status};
 			$rbox->insert( SpeedButton =>
 				sizeMax => [17,17],
 				backColor => $buttoncolor,
 				image => $icon,
-#			onClick => sub { unless ($record{status} == 4) { chooseStatus($rew,\$status,$k,$titletype); } else { setStatus(); }},
-		# put in button(s) for moving to another status? TODO later
+				hint => ($status == 4 ? "Start again" : $movetext),
+onClick => sub { devHelp($target,"Moving titles to new status");},
+#			onClick => sub { unless ($status == 4) { chooseStatus($rew,\$status,$k,$titletype); } else { setStatus(); }},
+	# TODO: code chooseStatus function for moving to another status
 			);
-			my $rew = $rbox->insert(Label => text => ($record{status} == 3 ? " (Re" . ($titletype eq 'series' ? "watch" : "read" ) . "ing) " : "   ")); # put in the rewatching status
 			$rbox->sizeMin($widths[1],$rbox->height) if (defined $widths[1] and $widths[1] > 0);
 		}
 		if ($titletype eq 'head') {
@@ -816,8 +658,10 @@ sub updatePortion {
 		$$data{status} = 4 if $complete;
 		my ($error,$st,@parms) = FlexSQL::prepareFromHash($data,($uptype < 2 ? "series" : "pub" ),1);
 		unless ($error) {
+			my $stat = getTitleStatus($dbh,$uptype,$titleid); # find out if re-viewing
 			my $res = FlexSQL::doQuery(2,$dbh,$st,@parms); # update SQL table
 			unless ($res == 1) { sayBox(getGUI('mainWin'),"Error: " . $dbh->errstr); return 0; } # rudimentary error message for now...
+			incrementRepeats($dbh,$uptype,$titleid) if ($stat == 3 and $complete); # increment read/seentimes if completed re-viewing
 		} else {
 			sayBox(getGUI('mainWin'),"Error: $st"); return 0;
 		}
@@ -1264,6 +1108,42 @@ sub fillBoxwithBars {
 		pulseBars($bars,$frames);
 	}
 	return $scores,$suggested;
+}
+print ".";
+
+sub getTitleStatus {
+	my ($dbh,$uptype,$tid) = @_;
+	my $st = "SELECT status FROM series WHERE sid=?";
+	if ($uptype > 1) { $st = "SELECT status FROM pub WHERE pid=?"; }
+	my $res = FlexSQL::doQuery(0,$dbh,$st,$tid);
+	return $res unless ("" eq "$res");
+	warn $dbh->errstr;
+	return -1;
+}
+print ".";
+
+sub incrementRepeats {
+	my ($dbh,$typ,$tid) = @_;
+	my $st = "UPDATE series SET seentimes=seentimes+1 WHERE sid=?";
+	if ($typ > 1) { $st = "UPDATE pub SET readtimes=readtimes+1 WHERE pid=?"; }
+	my $res = FlexSQL::doQuery(2,$dbh,$st,$tid);
+	unless ($res == 1) {
+		my $string = "incrementRepeats could not increment field because of error: $res";
+		(FIO::config('Main','fatalerr') ? die $string : warn $string);
+	}
+}
+print ".";
+
+=item devHelp PARENT UNFINISHEDTASK
+
+Displays a message that UNFINISHEDTASK is not done but is planned.
+TODO: Remove from release.
+No return value.
+
+=cut
+sub devHelp {
+	my ($target,$task) = @_;
+	sayBox($target,"$task is on the developer's TODO list.\nIf you'd like to help, check out the project's GitHub repo at http://github.com/over2sd/pomal.");
 }
 print ".";
 
