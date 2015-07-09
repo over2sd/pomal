@@ -25,6 +25,9 @@ Start rewatching show button (use previous track (|<<) icon to save button space
 FIX: insertDateWidget premature closure
 Add button for each unrated episode in series rating screen to rate that episode
 Check whether title is a long runner before putting up boxes of bars or buttons for each unrated episode
+Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
+Put jitload option on screen with initial DB fields
+Buttons in titlerow should pass along a reference to the row itself to facilitate moving title around, resetting icons, etc.
 
 v0.2:
 -----

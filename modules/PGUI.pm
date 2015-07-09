@@ -61,10 +61,9 @@ sub fillPage {
 		elsif (/rec/) {
 			$$gui{status}->text("Preparing recent activity box...");
 			$::application->yield();
-			$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ", pack => {fill => 'both', expand => 0} );
-			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, pady => 3, side => "top",}, alignment => ta::Left, );
-			$target->insert( SpeedButton => text => "Show Recent", onClick => sub { spreadRecent($dbh,$$gui{recent}); });
-			$$gui{recent} = $target;
+			$snote = $$gui{tabbar}->insert_to_page($index, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, pady => 3, side => "top",}, alignment => ta::Left, );
+			$$gui{recent} = $snote;
+			$snote->insert( SpeedButton => text => "Show Recent", onClick => sub { spreadRecent($dbh,$$gui{recent}); });
 			return; }
 		else { warn "Something unexpected happened"; return; }
 	}
@@ -74,9 +73,31 @@ sub fillPage {
 		push(@$labeltexts,$statuses{$_});
 		$pages{$_} = $page++;
 	}
+	my @cumulativestats = (0,0,0,0,0);
+	my @cumulativescores;
+	my $watched = ($rowtyp eq 'pub' ? "Chapters read" : "Episodes watched");
+	my $sb;
 	unless (config('UI','statustabs') or 0) { # single box
 		$$gui{status}->text("Placing titles in box...");
-		$snote = $$gui{tabbar}->insert_to_page($index, ScrollWidget => name => "$typ" );
+		$snote = $$gui{tabbar}->insert_to_page($index, VBox => name => "$typ", pack => {fill => 'both', expand => 0} );
+# calculate box size (also needed for buttons)
+# insert buttons to display different statuses
+# each button will call switchToStatus, which will check target for that status, and load a new box into it if that status is not found.
+# insert box
+# sizeMin box x-50 y+5
+# pull active status
+# display titles using switchToStatus
+		my $h; # = switchToStatus
+		if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+			my ($list,@stats) = insertStats($snote,$rowtyp,$h,$watched);
+			push(@cumulativescores,@$list);
+			foreach (0..$#stats) {
+				$cumulativestats[$_] += $stats[$_];
+			}
+		}
+# try to find scrollbar
+# try to move scrollbar to 0
+# return
 	} else {
 		$$gui{status}->text("Placing titles in tabs...");
 		my %args;
@@ -89,10 +110,9 @@ sub fillPage {
 			pack => { fill => 'both', expand => 1, pady => 3, side => "top", },
 		);
 	}
+# TODO: Move all this stuff inside the statustabs=1 braces
+	# Try to find scrollbar:
 #	$snote->hide();
-	my @cumulativestats = (0,0,0,0,0);
-	my @cumulativescores;
-	my $watched = ($rowtyp eq 'pub' ? "Chapters read" : "Episodes watched");
 	foreach (Sui::getStatOrder()) {
 		my $typestring = ($rowtyp eq 'pub' ? (config('Custom','man') or "Manga") : (config('Custom','ani') or "Anime"));
 		my $status = $statuses{$_};
@@ -130,40 +150,43 @@ sub fillPage {
 		# fill the box with titles
 		buildTitleRows($rowtyp,$table,$h,0,@keys);
 		if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-			# compile statistics from @a
-			my @tablestats = (0,0,0,0,0);
-			my @scorelist;
-			foreach (values %$h) {
-				push(@scorelist,$$_{score}) unless $$_{score} == 0;
-				$tablestats[0]++;
-				$tablestats[1] += 1 unless $$_{score} == 0;
-				$tablestats[2] += $$_{score};
-				$tablestats[3] += ($$_{status} == 4 ? ($rowtyp eq 'series' ? $$_{episodes} : $$_{chapters} ) : ($rowtyp eq 'series' ? ($$_{status} == 3 ? $$_{lastrewatched} : $$_{lastwatched} ) : ($$_{status} == 3 ? $$_{lastreread} : $$_{lastreadc} )));
-# @cumulativestats = [count,scorecount,scoresum,progress,medianscore]
+			my ($list,@stats) = insertStats($target,$rowtyp,$h,$watched);
+			push(@cumulativescores,@$list);
+			foreach (0..$#stats) {
+				$cumulativestats[$_] += $stats[$_];
 			}
-			$::application->yield();
-			$tablestats[1]++ unless $tablestats[1]; # prevent divide by zero
-			my $statline = (FIO::config('Table','withmedian') ? withMedian(\@tablestats,$watched,@scorelist) : withoutMedian(\@tablestats,$watched,@scorelist));
-			if (config('UI','statustabs') or 0) {
-				$snote->insert_to_page($page, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
-			} else {
-				$snote->insert( Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
-			}
-			push(@cumulativescores,@scorelist);
-			$cumulativestats[0] += $tablestats[0];
-			$cumulativestats[1] += $tablestats[1];
-			$cumulativestats[2] += $tablestats[2];
-			$cumulativestats[3] += $tablestats[3];
 		}
+		$::application->yield();
+		$sb = PGK::getScroll($snote) or PGK::getScroll($$gui{tabbar});
+		$sb->value(0) if defined $sb; # put scrollbar at top
 	}
-	$::application->yield();
-	if (FIO::config('Table','statsummary')) {
-		$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
-		my $statline = (FIO::config('Table','withmedian') ? withMedian(\@cumulativestats,$watched,@cumulativescores) : withoutMedian(\@cumulativestats,$watched,@cumulativescores));
-		$$gui{tabbar}->insert_to_page($index, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
-	}
+#	if (FIO::config('Table','statsummary')) {
+#		$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
+#		my $statline = (FIO::config('Table','withmedian') ? withMedian(\@cumulativestats,$watched,@cumulativescores) : withoutMedian(\@cumulativestats,$watched,@cumulativescores));
+#		$$gui{tabbar}->insert_to_page($index, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+#	}
 #	$target->enabled(1);
 #	$snote->show();
+}
+print ".";
+
+sub insertStats {
+	my ($target,$rowtyp,$h,$watched) = @_;
+	# compile statistics from @a
+	my @tablestats = (0,0,0,0,0);
+	my $scorelist;
+	foreach (values %$h) {
+		push(@$scorelist,$$_{score}) unless $$_{score} == 0;
+		$tablestats[0]++;
+		$tablestats[1] += 1 unless $$_{score} == 0;
+		$tablestats[2] += $$_{score};
+		$tablestats[3] += ($$_{status} == 4 ? ($rowtyp eq 'series' ? $$_{episodes} : $$_{chapters} ) : ($rowtyp eq 'series' ? ($$_{status} == 3 ? $$_{lastrewatched} : $$_{lastwatched} ) : ($$_{status} == 3 ? $$_{lastreread} : $$_{lastreadc} )));
+	}
+	$::application->yield();
+	$tablestats[1]++ unless $tablestats[1]; # prevent divide by zero
+	my $statline = (FIO::config('Table','withmedian') ? withMedian(\@tablestats,$watched,@$scorelist) : withoutMedian(\@tablestats,$watched,@$scorelist));
+	$target->insert( Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+	return ($scorelist,@tablestats);	
 }
 print ".";
 
@@ -255,14 +278,19 @@ sub populateMainWin {
 	$$gui{questionparent} = $$gui{mainWin}->insert( VBox => name => 'qparent', place => { fill => 'both', expand => 0, relx => 0, rely => 1, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
 	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 1, }, valign => ta::Center, alignment => ta::Center, font => applyFont('bighead'), autoHeight => 1, );
 	$::application->yield();
-	my $note = Prima::TabbedNotebook->create(
-		owner => getGUI('mainWin'),
+	my $profile = {
 		style => tns::Simple,
 		tabs => \@tabtexts,
 		name => 'SeriesTypes',
 		tabsetProfile => {colored => 0, %exargs, },
 		pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
-	);
+	};
+	my $note;
+	unless (config('UI','statustabs') or 0) {
+		$note = $$gui{mainWin}->insert( 'Prima::TabbedScrollNotebook' => %$profile);
+	} else {
+		$note = $$gui{mainWin}->insert( 'Prima::TabbedNotebook' => %$profile);
+	}
 	$$gui{tabbar} = $note; # store for additional tabs
 	$$gui{tablist} = \@tabs;
 	$note->hide();
@@ -1187,6 +1215,14 @@ sub checkTitle {
 		}
 	}
 	return $id;
+}
+print ".";
+
+sub switchToStatus {
+	my ($dbh,$target,$stat) = @_;
+# which will check target for that status, and load a new box into it if that status is not found.
+# if jit-load enabled, this will clear the target of other status boxes before inserting new box.
+
 }
 print ".";
 

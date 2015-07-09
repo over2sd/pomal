@@ -1441,5 +1441,29 @@ sub makeRule {
 }
 print ".";
 
+sub getScroll {
+	my ($w,$o) = @_;
+	$o = "VScroll" unless defined $o;
+	my $n;
+	foreach ($w->get_widgets) {
+		return $_ if $_->name eq $o; # for scrolled widgets other than notebooks
+		$n = $_ if $_->name eq 'Notebook';
+	}
+	return undef unless defined $n;
+	foreach ($n->get_widgets) { # for scrolled notebooks
+		return $_ if $_->name eq $o;
+	}
+	return undef;
+}
+print ".";
+
+sub scrollit {
+	my ($bar,$delta) = @_;
+	return unless defined $bar and defined $delta;
+	my $value = $bar->value;
+	$bar->value($value + $delta);
+}
+print ".";
+
 print " OK; ";
 1;
