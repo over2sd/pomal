@@ -434,6 +434,24 @@ sub empty {
 }
 print ".";
 
+# VBox but suitable for placing
+package VBoxE; #Replaces Gtk2::VBox
+use vars qw(@ISA);
+@ISA = qw(Prima::Widget);
+
+=item empty
+
+Destroys all child widgets.
+
+=cut
+sub empty {
+	my $self = shift;
+	foreach ($self->get_widgets()) {
+		$_->destroy();
+	}
+}
+print ".";
+
 package StatusBar; #Replaces Gtk2::Statusbar
 
 =head2 StatusBar
@@ -1446,16 +1464,23 @@ sub getScroll {
 	$o = "VScroll" unless defined $o;
 	my $n;
 	foreach ($w->get_widgets) {
-		return $_ if $_->name eq $o; # for scrolled widgets other than notebooks
+		return $_ if ($_->name eq $o); # for scrolled widgets other than notebooks
 		$n = $_ if $_->name eq 'Notebook';
 	}
 	return undef unless defined $n;
 	foreach ($n->get_widgets) { # for scrolled notebooks
-		return $_ if $_->name eq $o;
+		return $_ if ($_->name eq $o);
 	}
 	return undef;
 }
 print ".";
+
+sub resetScroll {
+	my $sb = shift;
+	return unless defined $sb;
+	$sb->value(0);
+	$sb->notify(q(Change));
+}
 
 sub scrollit {
 	my ($bar,$delta) = @_;

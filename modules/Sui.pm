@@ -118,6 +118,7 @@ sub getOpts {
 		'03f' => ['c',"Title score with a knob instead of a slider",'knobscore'],
 		'040' => ['c',"Show a horizontal rule between rows",'rulesep'],
 		'041' => ['x',"Rule color: ",'rulecolor',"#003"],
+		'042' => ['c',"Load title tables as needed, not all at startup",'jitload'],
 
 		'050' => ['l',"Recent",'Recent'],
 		'051' => ['c',"Recent tab is active on startup",'activerecent'],

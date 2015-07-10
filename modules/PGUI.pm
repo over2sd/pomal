@@ -43,8 +43,6 @@ print ".";
 sub fillPage {
 	my ($dbh,$index,$typ,$gui) = @_;
 	unless (defined $$gui{tabbar}) { Pdie("fillPage couldn't find tab bar!"); }
-	my $rowtyp = "???";
-	my $sortkey = 'title';
 	my ($target,$snote,%pages);
 	my %exargs;
 
@@ -53,10 +51,10 @@ sub fillPage {
 	my %statuses = Sui::getStatHash($typ);
 	my $labeltexts;
 	for ($typ) {
-		if (/ani/) { $rowtyp = "series"; }
-		elsif (/man/) { $rowtyp = "pub"; }
-		elsif (/mov/) { $rowtyp = "series"; $exargs{max} = 1; }
-		elsif (/sam/) { $rowtyp = "pub"; $exargs{max} = 1; }
+		if (/ani/) { }
+		elsif (/man/) { }
+		elsif (/mov/) { $exargs{max} = 1; }
+		elsif (/sam/) { $exargs{max} = 1; }
 		elsif (/sug/) { warn "Suggestions are not yet supported"; return; }
 		elsif (/rec/) {
 			$$gui{status}->text("Preparing recent activity box...");
@@ -68,37 +66,68 @@ sub fillPage {
 		else { warn "Something unexpected happened"; return; }
 	}
 	$$gui{status}->text("Loading titles...");
-	my $page = 0;
-	foreach (Sui::getStatOrder()) { # specific order
-		push(@$labeltexts,$statuses{$_});
-		$pages{$_} = $page++;
-	}
 	my @cumulativestats = (0,0,0,0,0);
 	my @cumulativescores;
-	my $watched = ($rowtyp eq 'pub' ? "Chapters read" : "Episodes watched");
-	my $sb;
+	my $watched = ($typ eq 'man' ? "Chapters read" : "Episodes watched");
 	unless (config('UI','statustabs') or 0) { # single box
-		$$gui{status}->text("Placing titles in box...");
+		$$gui{status}->text("Placing titles in common box...");
 		$snote = $$gui{tabbar}->insert_to_page($index, VBox => name => "$typ", pack => {fill => 'both', expand => 0} );
+		my $buttonbar = $snote->insert( HBox => name => "buttons", pack => {fill => 'x', expand => 0});
+		$buttonbar->insert(SpeedButton => text => "Please wait...");
 # calculate box size (also needed for buttons)
-# insert buttons to display different statuses
-# each button will call switchToStatus, which will check target for that status, and load a new box into it if that status is not found.
+		my $sizer = $snote->insert( Label => text => "Calculating size...", pack => { fill => 'both', expand => 1, anchor => 'nw'}, backColor => convertColor("#ccf"), sizeMin => [10,(FIO::config('Main','height') or 2000)]); #ensures a scrollbar will be generated
+		my ($w,$h,$bh) = ($sizer->size,$buttonbar->height);
+		$sizer->destroy();
+		$buttonbar->empty();
+		my @tabs = $$gui{tabbar}->get_widgets();
+		my $t = $tabs[0]; # TabSet
+#		my ($x,$y) = $t->origin;
+		my ($x,$y) = (0,-7);#-$bh);
+		$h -= $bh;
+		my $placement = [$x,$y,$w,$h];
 # insert box
-# sizeMin box x-50 y+5
-# pull active status
-# display titles using switchToStatus
-		my $h; # = switchToStatus
-		if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-			my ($list,@stats) = insertStats($snote,$rowtyp,$h,$watched);
-			push(@cumulativescores,@$list);
-			foreach (0..$#stats) {
-				$cumulativestats[$_] += $stats[$_];
+		$target = $snote->insert( VBoxE => name => "$typ", pack => { fill => 'both', expand => 1, }, sizeMin => [$w,$h]);
+# insert buttons to display different statuses
+		my @order = Sui::getStatOrder;
+		my $buts = {};
+			foreach (@order) {
+				$$buts{$_} = $buttonbar->insert( SpeedButton =>
+					checkable => 1,
+					name => $_,
+					text => $statuses{$_},
+# each button will call switchToStatus, which will check target for that status, and load a new box into it if that status is not found.
+					onClick => sub { switchToStatus($dbh,$target,$typ,$_[0]->name,$buttonbar,$_[0],$placement,%exargs); },
+				);
 			}
+		if (FIO::config('UI','jitload') or 0) {
+			@order = ($order[0],); # trim array if loading Just-In-Time
 		}
+		foreach (reverse @order) {
+# display titles using switchToStatus
+			my $typestring = (config('Custom',$typ) or ($typ eq 'man' ? "Manga" : "Anime"));
+			my $status = $statuses{$_};
+			$$gui{status}->text("Placing titles in common box ($typestring/$status)...");
+			my $h = switchToStatus($dbh,$target,$typ,$_,$buttonbar,($$buts{$_} or undef),$placement,%exargs);
+			if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+				my ($list,@stats) = insertStats($snote,($typ eq 'man' ? 'pub' : 'series'),$h,$watched);
+				push(@cumulativescores,@$list);
+				foreach (0..$#stats) {
+					$cumulativestats[$_] += $stats[$_];
+				}
+			}
 # try to find scrollbar
+			my $sb = (PGK::getScroll($snote) or PGK::getScroll($$gui{tabbar}));
 # try to move scrollbar to 0
-# return
-	} else {
+			$sb->value(0) if defined $sb; # put scrollbar at top
+			$::application->yield();
+		}
+		return;
+	} else { # 'UI','statustabs' = 1
+		my $page = 0;
+		foreach (Sui::getStatOrder()) { # specific order
+			push(@$labeltexts,$statuses{$_});
+			$pages{$_} = $page++;
+		}
 		$$gui{status}->text("Placing titles in tabs...");
 		my %args;
 		if (defined config('UI','tabson')) { $args{orientation} = (config('UI','tabson') eq "bottom" ? tno::Bottom : tno::Top); } # set tab position based on config option
@@ -109,64 +138,32 @@ sub fillPage {
 			tabsetProfile => {colored => 0, %args, },
 			pack => { fill => 'both', expand => 1, pady => 3, side => "top", },
 		);
-	}
-# TODO: Move all this stuff inside the statustabs=1 braces
-	# Try to find scrollbar:
-#	$snote->hide();
-	foreach (Sui::getStatOrder()) {
-		my $typestring = ($rowtyp eq 'pub' ? (config('Custom','man') or "Manga") : (config('Custom','ani') or "Anime"));
-		my $status = $statuses{$_};
-		$$gui{status}->text("Placing titles in tabs ($typestring/$status)...");
-		$::application->yield();
-		$page = $pages{$_};
-		if (config('UI','statustabs') or 0) {
+		foreach (Sui::getStatOrder()) {
+			my $typestring = (config('Custom',$typ) or ($typ eq 'man' ? "Manga" : "Anime"));
+			my $status = $statuses{$_};
+			$$gui{status}->text("Placing titles in tabs ($typestring/$status)...");
+			$::application->yield();
+			$page = $pages{$_};
 			$target = $snote->insert_to_page($page, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
-		} else {
-			$target = $snote->insert( VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
-		}
-#		$target->enabled(0);
-		# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
-		# $exargs{maxparts} = 1
-		# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-		my $h = Sui::getTitlesByStatus($dbh,$rowtyp,$_,%exargs);
-		my @keys = Common::indexOrder($h,$sortkey);
-		# make a label
-		my $label = $target->insert( Label => text => $$labeltexts[$page], pack => { fill => 'y', expand => 0, side => "left", padx => 5, },);
-		applyFont('label',$label);
-#		applyFont('label',$labels{$_});
-##		print "Looking for " . $typ . "/" . $_ . "...";
-		my $table = $target->insert( VBox =>
-			name => "${_}table",
-			backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
-###	TODO: push table to $gui's list of tables
-		my $tlist = { 'h' => {
-			title => "Title",
-			status => 0,
-			score => "Score",
-			sid => "?"
-		}};
-		$::application->yield();
-		buildTitleRows("head",$table,$tlist,0,'h');
-		# fill the box with titles
-		buildTitleRows($rowtyp,$table,$h,0,@keys);
-		if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
-			my ($list,@stats) = insertStats($target,$rowtyp,$h,$watched);
-			push(@cumulativescores,@$list);
-			foreach (0..$#stats) {
-				$cumulativestats[$_] += $stats[$_];
+ 			my $h = pullRows($dbh,$target,$typ,$_,$$labeltexts[$page],%exargs);
+			if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
+				my ($list,@stats) = insertStats($snote,($typ eq 'man' ? 'pub' : 'series'),$h,$watched);
+				push(@cumulativescores,@$list);
+				foreach (0..$#stats) {
+					$cumulativestats[$_] += $stats[$_];
+				}
 			}
+			# Try to find scrollbar:
+			my $sb = PGK::getScroll($snote) or PGK::getScroll($$gui{tabbar});
+			$sb->value(0) if defined $sb; # put scrollbar at top
+			$::application->yield();
 		}
-		$::application->yield();
-		$sb = PGK::getScroll($snote) or PGK::getScroll($$gui{tabbar});
-		$sb->value(0) if defined $sb; # put scrollbar at top
+		if (FIO::config('Table','statsummary')) {
+			$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
+			my $statline = (FIO::config('Table','withmedian') ? withMedian(\@cumulativestats,$watched,@cumulativescores) : withoutMedian(\@cumulativestats,$watched,@cumulativescores));
+			$$gui{tabbar}->insert_to_page($index, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
+		}
 	}
-#	if (FIO::config('Table','statsummary')) {
-#		$cumulativestats[1]++ unless $cumulativestats[1]; # prevent divide by zero
-#		my $statline = (FIO::config('Table','withmedian') ? withMedian(\@cumulativestats,$watched,@cumulativescores) : withoutMedian(\@cumulativestats,$watched,@cumulativescores));
-#		$$gui{tabbar}->insert_to_page($index, Label => text => $statline, pack => { fill => 'x', expand => 0,}, );
-#	}
-#	$target->enabled(1);
-#	$snote->show();
 }
 print ".";
 
@@ -298,6 +295,12 @@ sub populateMainWin {
 		fillPage($dbh,$_,$tabs[$_],$gui);
 	}
 	$note->show();
+# try to find scrollbar
+	my $sb = PGK::getScroll($note);
+# try to move scrollbar to 0
+	$sb->value(0) if defined $sb; # put scrollbar at top
+	PGK::resetScroll($sb);
+	$::application->yield();
 	$waiter->destroy();
 	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('Recent','activerecent') ? getTabByCode('rec') : 0));
 	$$gui{status}->text("Ready.");
@@ -373,20 +376,15 @@ sub buildTitleRows {
 			$cb->sizeMin($widths[1],$cb->height) if (defined $widths[1] and $widths[1] > 0);
 			$cb->backColor($headcolor);
 		} else {
-			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
-			$rbox->arrange();
-			my $staticon = Prima::Image->new( size => [16,16]);
-			my $status = $record{status};
-			$staticon->load("modules/status$status.png") or print "Could not load icon";
-			my $rew = $rbox->insert(ImageViewer => sizeMax => [23,17], backColor => $backcolor, alignment => ta::Left, valignment => ta::Top, image => $staticon, hint => $$statlabels[$status]);
-			my $seen = ($titletype eq 'series' ? 'seentimes' : 'readtimes');
-			$rbox->insert( Label => text => "x" . ($record{$seen} + 1)) if ($record{status} == 4 and $record{$seen} > 0);
 			my $icon = Prima::Image->new( size => [16,16]);
+			my $status = $record{status};
 			unless ($status == 4) { # No move button for completed page
 				$icon->load("modules/move.png") or print "Could not load icon";
 			} else { # Instead, make "Rewatch this show" button
 				$icon->load("modules/reset.png") or print "Could not load icon";
 			}
+			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
+			$rbox->arrange();
 			$rbox->insert( SpeedButton =>
 				sizeMax => [17,17],
 				backColor => $buttoncolor,
@@ -397,6 +395,11 @@ onClick => sub { devHelp($target,"Moving titles to new status");},
 	# TODO: code chooseStatus function for moving to another status
 			);
 			$rbox->sizeMin($widths[1],$rbox->height) if (defined $widths[1] and $widths[1] > 0);
+			my $staticon = Prima::Image->new( size => [16,16]);
+			$staticon->load("modules/status$status.png") or print "Could not load icon";
+			my $rew = $rbox->insert(ImageViewer => sizeMax => [23,17], backColor => $backcolor, alignment => ta::Right, valignment => ta::Top, image => $staticon, hint => $$statlabels[$status]);
+			my $seen = ($titletype eq 'series' ? 'seentimes' : 'readtimes');
+			$rbox->insert( Label => text => "x" . ($record{$seen} + 1)) if ($record{status} == 4 and $record{$seen} > 0);
 		}
 		if ($titletype eq 'head') {
 			my $plabel = $row->insert( Label => text => "Progress");
@@ -977,7 +980,7 @@ sub scoreTitle {
 		$suggested /= $scores if ($scores);
 		$suggested *= 2 unless (FIO::config('Main','starscore'));
 		$suggested *= ((($tdata{max} or 0) or $scores) / $scores) if (FIO::config('Main','extendscore') and $scores);
-		$suggested *= (10/(FIO::config('Main','wowfactor') or 8.45)); # This is a ratio, so no need to adjust for 5-star scoring;
+		$suggested *= (10/(FIO::config('Main','wowfactor') or 8.45)) if ($suggested > (FIO::config('Main','wowfactor') or 8.45) * 0.56); # This is a ratio, so no need to adjust for 5-star scoring;
 		$suggested = 5 if ($suggested > 5 and FIO::config('Main','starscore'));
 		$suggested = 11 if ($suggested > 11);
 		$suggtxt->text(sprintf("Based on your rated $tdata{ptype}, $tdata{title} deserves a score of %.1f",$suggested));
@@ -1219,10 +1222,63 @@ sub checkTitle {
 print ".";
 
 sub switchToStatus {
-	my ($dbh,$target,$stat) = @_;
-# which will check target for that status, and load a new box into it if that status is not found.
-# if jit-load enabled, this will clear the target of other status boxes before inserting new box.
+	my ($dbh,$target,$typ,$stat,$buttonbar,$button,$placement,%exargs) = @_;
+# DB handle, target, title type (a/m), status, container of buttons to enable, button to disable
+	foreach ($buttonbar->get_widgets) {
+		$_->checked(0);
+		$_->enabled(1); # enable all buttons
+		$button = $_ if (not defined $button and $_->name eq $stat);
+	}
+	$button->checked(1) if defined $button; # otherwise, oops?
+	$button->enabled(0) if defined $button; # otherwise, oops?
+	foreach ($target->get_widgets) { # which will check target for that status...
+		if ($_->name eq "$typ$stat") {
+			$_->bring_to_front();
+			return;
+		}
+	}
+	# and load a new box into it if that status is not found.
+	print "Emptying box..." if (FIO::config('UI','jitload') or 0) and (1 or FIO::config('Debug','v')); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
+	$target->empty() if (FIO::config('UI','jitload') or 0); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
+	my $boxtext = ($button->text or "$typ/$stat" or "?");
+	my ($x,$y,$w,$h) = @$placement;
+	$::application->yield();
+	my $box = $target->insert( VBox => name => "$typ$stat", place => { in => $target, relx => 0, x => $x, rely => 1, y => $y, anchor => 'nw', }, sizeMin => [$w,$h]);
+	my $rows = pullRows($dbh,$box,$typ,$stat,$boxtext,%exargs);
+	foreach ($target->get_widgets) { # which will check target for that status...
+		if ($_->name eq "$typ$stat") {
+			$_->bring_to_front();
+		}
+	}
+	return $rows;
+}
+print ".";
 
+sub pullRows {
+	my ($dbh,$target,$typ,$stat,$text,%exargs) = @_;
+	my $sortkey = 'title';
+	# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
+	# $exargs{maxparts} = 1
+	# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
+	my $rowtyp = ($typ eq 'man' ? 'pub' : 'series');
+	my $h = Sui::getTitlesByStatus($dbh,$rowtyp,$stat,%exargs);
+	my @keys = Common::indexOrder($h,$sortkey);
+	# make a label
+	my $label = $target->insert( Label => text => $text, pack => { fill => 'y', expand => 0, side => "left", padx => 5, }, font => applyFont('label'), );
+##	print "Looking for " . $typ . "/" . $stat . "...";
+	my $table = $target->insert( VBox => name => "${stat}table", backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
+###	TODO: push table to $gui's list of tables
+	my $tlist = { 'h' => {
+		title => "Title",
+		status => 0,
+		score => "Score",
+		sid => "?"
+	}};
+	$::application->yield();
+	buildTitleRows("head",$table,$tlist,0,'h');
+	# fill the box with titles
+	buildTitleRows($rowtyp,$table,$h,0,@keys);
+	return $h;
 }
 print ".";
 

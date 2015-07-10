@@ -22,11 +22,12 @@ Prima GUI to same point as old GTK2 GUI.
 = Manual entry of titles
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
+Put jitload option on screen with initial DB fields
 FIX: insertDateWidget premature closure
+Rules in title listings
 Add button for each unrated episode in series rating screen to rate that episode
 Check whether title is a long runner before putting up boxes of bars or buttons for each unrated episode
-Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
-Put jitload option on screen with initial DB fields
+= Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
 Buttons in titlerow should pass along a reference to the row itself to facilitate moving title around, resetting icons, etc.
 
 v0.2:
