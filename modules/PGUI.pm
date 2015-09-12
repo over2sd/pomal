@@ -90,6 +90,7 @@ sub fillPage {
 # insert buttons to display different statuses
 		my @order = Sui::getStatOrder;
 		my $buts = {};
+		if (FIO::config('UI','jitload') or 0) {
 			foreach (@order) {
 				$$buts{$_} = $buttonbar->insert( SpeedButton =>
 					checkable => 1,
@@ -99,7 +100,6 @@ sub fillPage {
 					onClick => sub { switchToStatus($dbh,$target,$typ,$_[0]->name,$buttonbar,$_[0],$placement,%exargs); },
 				);
 			}
-		if (FIO::config('UI','jitload') or 0) {
 			@order = ($order[0],); # trim array if loading Just-In-Time
 		}
 		foreach (reverse @order) {
@@ -367,6 +367,7 @@ sub buildTitleRows {
 		}
 		# column between 0 and 1, remainder column. Ignore width
 		my $title = $row->insert( Label => text => Common::shorten($record{title},30), pack => { fill => 'x', expand => 1, }, ); # put in the title of the series
+		unless ($title->text eq $record{title}) { $title->hint($record{title}); } # if I shortened the title, make the full title available in a tooltip
 		applyFont('body',$title);
 		if ($titletype eq 'head') {
 			$title->backColor($headcolor);
@@ -385,19 +386,19 @@ sub buildTitleRows {
 			}
 			my $rbox = $row->insert( HBox => backColor => $backcolor, pack => { fill => 'none', expand => 0, }, );
 			$rbox->arrange();
-			$rbox->insert( SpeedButton =>
+			my $changer = $rbox->insert( SpeedButton =>
 				sizeMax => [17,17],
 				backColor => $buttoncolor,
 				image => $icon,
 				hint => ($status == 4 ? "Start again" : $movetext),
 onClick => sub { devHelp($target,"Moving titles to new status");},
-#			onClick => sub { unless ($status == 4) { chooseStatus($rew,\$status,$k,$titletype); } else { setStatus(); }},
 	# TODO: code chooseStatus function for moving to another status
 			);
 			$rbox->sizeMin($widths[1],$rbox->height) if (defined $widths[1] and $widths[1] > 0);
 			my $staticon = Prima::Image->new( size => [16,16]);
 			$staticon->load("modules/status$status.png") or print "Could not load icon";
 			my $rew = $rbox->insert(ImageViewer => sizeMax => [23,17], backColor => $backcolor, alignment => ta::Right, valignment => ta::Top, image => $staticon, hint => $$statlabels[$status]);
+			$changer->onClick( sub { ($status == 4 ? chooseStatus($updater,$row,$rew,$status,$k,$titletype) : setStatus($updater,$row,$rew,3,$k,$titletype) )});
 			my $seen = ($titletype eq 'series' ? 'seentimes' : 'readtimes');
 			$rbox->insert( Label => text => "x" . ($record{$seen} + 1)) if ($record{status} == 4 and $record{$seen} > 0);
 		}
@@ -1192,14 +1193,14 @@ sub devHelp {
 print ".";
 
 sub checkTitle {
-	my ($dbh,$name,$safetable) = @_;
+	my ($dbh,$target,$name,$safetable) = @_;
 	$safetable =~ m/([ps])/;
 	my $x = $1;
 # TODO: Allow different patterns via option
 	$name =~ m/([Tt]he )?([A-Za-z\w]+)/;
 	my $id = -1;
 	my $likename = $2;
-	my $target = getGUI("questionparent");
+	$target = getGUI("questionparent") unless defined $target;
 # yesnoXB($target);
 	my $st = "SELECT ${x}id,${x}name,status FROM $safetable WHERE ${x}name LIKE ?;";
 	my $res = FlexSQL::doQuery(4,$dbh,$st,"$2%");
@@ -1216,6 +1217,7 @@ sub checkTitle {
 		while ($id == -1 and defined $target) { # wait until button pressed or target destroyed
 			PGK::Pwait(1);
 		}
+		$target->empty();
 	}
 	return $id;
 }
@@ -1279,6 +1281,20 @@ sub pullRows {
 	# fill the box with titles
 	buildTitleRows($rowtyp,$table,$h,0,@keys);
 	return $h;
+}
+print ".";
+
+sub chooseStatus{
+devHelp(getGUI('mainWin'),"Choosing a status");
+return;
+	my ($dbh,$row,$icon,$status,$k,$typ) = @_;
+}
+print ".";
+
+sub setStatus {
+	my ($dbh,$row,$icon,$status,$tid,$typ) = @_;
+	die "[E] setStatus really can't function without a DB handle, a status, and a title type and id.\n" unless (defined $dbh and defined $tid and defined $status and defined $typ);
+
 }
 print ".";
 

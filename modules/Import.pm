@@ -69,8 +69,11 @@ sub fromMAL {
 	my $waiter = ($$gui{questionparent} or undef);
 	$waiter->bring_to_front() if $waiter;
 	$::application->yield();
-	my $statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or 0);
+	my $statline;
+	use Error qw(:try);
 	while ($loop == 1) {
+		$statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or undef) unless defined $statline;
+		$::application->yield();
 		if ($xml->nodeType() == 8) { print "\nComment in XML: " . $xml->value() . "\n"; $loop = $xml->next(); next; } # print comments and skip processing
 		if ($xml->nodeType() == 13 or $xml->nodeType() == 14 or $xml->name() eq "myanimelist") { $i--; $loop = $xml->read(); next; } # skip whitespace (and root node)
 		for ($xml->name()) {
@@ -93,9 +96,11 @@ sub fromMAL {
 				print "\n";
 			} elsif (/^anime$/) {
 				my $node = $xml->copyCurrentNode(1);
+				$::application->yield();
 				$statline->text("Attempting to import anime $info{$anitags{foundkey}}/$info{$anitags{totkey}} to database...") if $statline;
 				my ($updated,$error) = storeMAL($gui,$dbh,'series',$node,$termcolor,$anicol,\%info,%anitags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
+				unless ($updated) { $waiter->empty(); $statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or undef); }
 				if ($returndata) { push(@list,$updated); }
 				$loop = $xml->next();
 				print " ";
@@ -104,6 +109,7 @@ sub fromMAL {
 				$statline->text("Attempting to import manga $info{$mantags{foundkey}}/$info{$mantags{totkey}} to database...") if $statline;
 				my ($updated,$error) = storeMAL($gui,$dbh,'pub',$node,$termcolor,$mancol,\%info,%mantags);
 				unless ($error) { $storecount++; $upcount += $updated; } # increase count of titles successfully stored (inserted or updated)
+				unless ($updated) { $waiter->empty(); $statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or undef); }
 				if ($returndata) { push(@list,$updated); }
 				$loop = $xml->next();
 				print " ";

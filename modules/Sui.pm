@@ -196,7 +196,7 @@ sub getRealID {
 	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
 	my $idtable = $dbh->quote_identifier($idtable);
 	if ($column eq $dbh->quote_identifier('usr')) {
-		my $idnum = PGUI::checkTitle($dbh,$$data{$keys[0]},$safetable);
+		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
 		print "[I] Gave new ID#$idnum to user-entered title. " if FIO::config('Debug','v') > 4;
@@ -206,7 +206,7 @@ sub getRealID {
 		print "[I] Found existing ID#$idnum..." if FIO::config('Debug','v') > 4;
 		return (1,$idnum);
 	} else {
-		my $idnum = PGUI::checkTitle($dbh,$$data{$keys[0]},$safetable);
+		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
 		my $err = FlexSQL::doQuery(2,$dbh,"INSERT INTO $idtable ($safeid,$column) VALUES (?,?)",$idnum,$$data{extid});
@@ -214,7 +214,6 @@ sub getRealID {
 		print "[I] Gave new ID#$idnum to MAL title#$$data{extid}. " if FIO::config('Debug','v') > 4;
 		return (0,$idnum);
 	}
-		#	my ($found,$realid) = Sui::getRealID($dbh,$table,\%data);
 }
 print ".";
 
