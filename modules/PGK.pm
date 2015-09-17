@@ -1073,7 +1073,7 @@ sub createMainWin {
 	);
 	my ($t,$l) = ((FIO::config('Main','top') or 30),(FIO::config('Main','left') or 40));
 	$window->place( x => $l, rely => 1, y=> -$t, anchor => "nw");
-	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; } );
+	$window->onClose( sub { FlexSQL::closeDB(); my $err = PGK::savePos($window) if (FIO::config('Main','savepos')); Common::errorOut('PGK::savePos',$err) if $err; exit(0); } );
 	#pack it all into the hash for main program use
 	$windowset{mainWin} = $window;
 	$window->set( menuItems => PGUI::buildMenus(\%windowset));
@@ -1378,10 +1378,11 @@ sub insertDateWidget {
 	$smallbox->insert( Label => text => $$extra{label} ) if (defined $$extra{label});
 	my $calent = $smallbox->insert( InputLine => text => ($$extra{default} or '0000-00-00'), name => ($$extra{name} or 'imadate') );
 	my $calbut = $smallbox->insert( SpeedButton => name => ($$extra{buttonname} or 'showcal'), onClick => sub {
-		my $calwin = Prima::Dialog->create( size => [ 250, 275 ]);
-		my $cal = $calwin->insert( Calendar => useLocale => 0, onChange  => sub { $calent->text(sprintf("%04d-%02d-%02d",$_[0]->year + 1900, $_[0]->month + 1, $_[0]->day)); $calwin->close(); }, pack => { fill => 'both', expand => 1, side => 'top',}, sizeMin => [200,200],);
+		my $calwin = Prima::Dialog->create( size => [ 250, 275 ], text => "Choose Date",);
+		my $cal = $calwin->insert( Calendar => useLocale => 0, onChange  => sub { $calent->text(sprintf("%04d-%02d-%02d",$_[0]->year + 1900, $_[0]->month + 1, $_[0]->day)); }, pack => { fill => 'both', expand => 1, side => 'top',}, sizeMin => [200,200],);
 		$cal->date_from_time( localtime );
-		$calwin->insert( SpeedButton => text => "Cancel", pack => { fill => 'x', side => 'bottom', expand => 0}, onClick => sub { $calwin->close(); }, );
+		$calwin->insert( SpeedButton => text => "Cancel", pack => { fill => 'x', side => 'bottom', expand => 0}, onClick => sub { $calent->text($$extra{default} or '0000-00-00'); $calwin->close(); }, );
+		$calwin->insert( SpeedButton => text => "Set", pack => { fill => 'x', side => 'bottom', expand => 0}, onClick => sub { $calwin->close(); }, );
 		$calwin->execute;
 		$calwin->destroy;
 	}, imageFile => 'modules/cal-icon.png', );

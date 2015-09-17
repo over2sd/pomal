@@ -61,7 +61,7 @@ sub fromMAL {
 	my $anicol = ($termcolor ? Common::getColorsbyName("cyan") : "");
 	my $mancol = ($termcolor ? Common::getColorsbyName("ltblue") : "");
 	my %info;
-	my $i = 0;
+#	my $i = 0;
 	my $loop = $xml->read();
 	# these two hashes determine the hash key under which each XML tag will be stored:
 	my %anitags = External::getTags('MALa');
@@ -70,12 +70,13 @@ sub fromMAL {
 	$waiter->bring_to_front() if $waiter;
 	$::application->yield();
 	my $statline;
-	use Error qw(:try);
 	while ($loop == 1) {
 		$statline = ($waiter->insert( Label => text => "Attempting to import titles to database...") or undef) unless defined $statline;
 		$::application->yield();
 		if ($xml->nodeType() == 8) { print "\nComment in XML: " . $xml->value() . "\n"; $loop = $xml->next(); next; } # print comments and skip processing
-		if ($xml->nodeType() == 13 or $xml->nodeType() == 14 or $xml->name() eq "myanimelist") { $i--; $loop = $xml->read(); next; } # skip whitespace (and root node)
+		if ($xml->nodeType() == 13 or $xml->nodeType() == 14 or $xml->name() eq "myanimelist") {
+#			$i--;
+			$loop = $xml->read(); next; } # skip whitespace (and root node)
 		for ($xml->name()) {
 			if(/^myinfo$/) {
 				print "Info ";
@@ -118,7 +119,7 @@ sub fromMAL {
 			}
 		}
 		$loop = $xml->read();
-		$i++; # TODO: remove this temporary limiter
+#		$i++; # TODO: remove this temporary limiter
 #		if ($i > 30) { $loop = 0; } # to shorten test runs
 	}
 	$|--;
@@ -170,6 +171,7 @@ sub storeMAL {
 		}
 		# prepare statement, parms
 		my ($found,$realid) = Sui::getRealID($dbh,$$gui{questionparent},'mal',$table,\%data);
+		return (0,-1) if ($found == -1); # unrecoverable error: no title
 		if($found) {
 			# config controls if user wants to update name and max episodes...
 			my $clobber = (config('Main','importdiffnames') or "never");

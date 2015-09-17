@@ -10,6 +10,7 @@ Perhaps disambiguation list should be loaded from an external file, so the user 
 Display/edit of tags for episode/chapter?
 Display/edit of dates started/completed
 Social media integration
+Export/Import of episode data
 
 Roadmap
 =======
@@ -23,7 +24,7 @@ Prima GUI to same point as old GTK2 GUI.
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
 Put jitload option on screen with initial DB fields
-FIX: insertDateWidget premature closure
+= FIX: insertDateWidget premature closure
 Rules in title listings
 Add button for each unrated episode in series rating screen to rate that episode
 Check whether title is a long runner before putting up boxes of bars or buttons for each unrated episode

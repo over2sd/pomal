@@ -1057,8 +1057,9 @@ sub spreadRecent {
 	);
 	my $limit = (FIO::config('Recent','reclimit') or 5);
 	$st = "$st LIMIT %d" if ($limit);
+	$limit += 3 if $limit; # allow for 3 duplicates
 	$recent->empty();
-	$recent->insert( SpeedButton => text => "Refresh", onClick => sub { spreadRecent($dbh,$recent); });
+	my $refresher = $recent->insert( SpeedButton => text => "Refresh", onClick => sub { spreadRecent($dbh,$recent); }, enabled => 0);
 	foreach ('series','pub') {
 		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$limit);
 #print "Asking database: $cmd\n";
@@ -1066,7 +1067,11 @@ sub spreadRecent {
 		if ($res) {
 			$recent->insert( Label => text => "$fields{$_}[6] Activity", font => applyFont('head'), alignment => ta::Left, pack => {fill => 'x'}, autoHeight => 1);
 			my $key = $_;
+			my @sids;
 			foreach (@$res) {
+				next unless ((scalar(@sids) <= 1 or Common::findIn($$_[0],@sids) < 0) and $limit);
+				push(@sids,$$_[0]); # ^ skip if already used, <- record use
+				$limit--; # keep extras from exceeding user-set limit
 				my $date = $$_[1];
 				$cmd = sprintf("SELECT %s,%s,%ss,status,%s,%s,score FROM %s WHERE %s=?;",$fields{$key}[0],$fields{$key}[5],$fields{$key}[2],$fields{$key}[7],$fields{$key}[8],$key,$fields{$key}[0]);
 				my $subres = FlexSQL::doQuery(3,$dbh,$cmd,$$_[0],$fields{$key}[0]);
@@ -1129,6 +1134,7 @@ sub spreadRecent {
 			}
 		}
 	}
+	$refresher->enabled(1);
 }
 print ".";
 
@@ -1193,31 +1199,40 @@ sub devHelp {
 print ".";
 
 sub checkTitle {
-	my ($dbh,$target,$name,$safetable) = @_;
+	my ($dbh,$target,$name,$safetable,$pattern) = @_;
+	$pattern = qr|([Tt]he )?([A-Za-z\w]+)| unless (defined $pattern and length($pattern) > 0); # Different patterns allowed via option
 	$safetable =~ m/([ps])/;
 	my $x = $1;
-# TODO: Allow different patterns via option
-	$name =~ m/([Tt]he )?([A-Za-z\w]+)/;
 	my $id = -1;
-	my $likename = $2;
+	$name =~ m/$pattern/;
+	my $likename = ($2 or $1);
+	unless (length($likename) > 1) {
+		my $err = "You must supply checkTitle with a title.";
+		errorOut('inline',-1,{string => $err});
+		PGK::sayBox($target,$err);
+		return -1;
+	}
+	$target->insert( Label => text => "Searching for $likename...");
+	$likename = "%$likename" unless FIO::config('DB','checkfromstart');
 	$target = getGUI("questionparent") unless defined $target;
 # yesnoXB($target);
 	my $st = "SELECT ${x}id,${x}name,status FROM $safetable WHERE ${x}name LIKE ?;";
-	my $res = FlexSQL::doQuery(4,$dbh,$st,"$2%");
+	my $res = FlexSQL::doQuery(4,$dbh,$st,"$likename%");
 	if (@$res) {
-		$target->empty();
-		$target->insert( Label => text => "Is one of the following titles the same as $name?" );
-		my $stats = Sui::getStatArray(($x = 'p' ? 'man' : 'ani'));
+		my $query = $target->insert( VBox => name => "questionbox" );
+		$query->insert( Label => text => "Is one of the following titles the same as $name?" );
+		my $stats = Sui::getStatArray(($x eq 'p' ? 'man' : 'ani'));
 		foreach (@$res) {
 			my ($i,$t,$s) = @$_;
 			$s = $$stats[$s];
-			$target->insert( SpeedButton => text => "$t ($s)", onClick => sub { $id = $i; });
+			$query->insert( SpeedButton => text => "$t ($s)", onClick => sub { $id = $i; });
 		}
-		$target->insert( SpeedButton => text => "No, $name is a new title.", onClick => sub { $id = -2; });
+		$query->insert( SpeedButton => text => "No, $name is a new title.", onClick => sub { $id = -2; });
 		while ($id == -1 and defined $target) { # wait until button pressed or target destroyed
 			PGK::Pwait(1);
 		}
-		$target->empty();
+		$query->empty();
+		$query->destroy();
 	}
 	return $id;
 }

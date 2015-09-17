@@ -133,6 +133,8 @@ sub getOpts {
 ##		'32a' => ['c',"Update episode record with date on first change of episode"],
 ##		'329' => ['r',"Conservation priority",'conserve',0,'mem',"Memory",'net',"Network traffic (requires synchronization)"],
 ##		'325' => ['c',"Maintain extended information table",'exinfo'],
+		'326' => ['c',"Check titles only from start",'checkfromstart'],
+		'327' => ['t',"Use this expression for title checks:",'likefilter'],
 
 		'515' => ['l',"Import/Export",'ImEx'],
 		'516' => ['c',"Use Disambiguation/Filter list",'filterinput'],
@@ -195,9 +197,11 @@ sub getRealID {
 	$idtable = 'extpid' if $table eq 'pub';
 	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
 	my $idtable = $dbh->quote_identifier($idtable);
+	my $criteria = (FIO::config('DB','likefilter') or qr/(\w+)/);
 	if ($column eq $dbh->quote_identifier('usr')) {
-		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable);
+		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable,$criteria);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
+		return -1 if $idnum == -1;
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
 		print "[I] Gave new ID#$idnum to user-entered title. " if FIO::config('Debug','v') > 4;
 		return (0,$idnum);
@@ -206,8 +210,9 @@ sub getRealID {
 		print "[I] Found existing ID#$idnum..." if FIO::config('Debug','v') > 4;
 		return (1,$idnum);
 	} else {
-		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable);
+		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable,$criteria);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
+		return -1 if $idnum == -1;
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
 		my $err = FlexSQL::doQuery(2,$dbh,"INSERT INTO $idtable ($safeid,$column) VALUES (?,?)",$idnum,$$data{extid});
 		die "Error: $err" if $error;
@@ -284,8 +289,10 @@ sub getDefaults {
 		['Font','bigent',"Verdana 24"],
 		['UI','statustabs',1],
 		['UI','rulecolor',"#003"],
+		['DB','likefilter',"qr/(\w+)/"],
 	);
 }
+print ".";
 
 print "OK; ";
 1;

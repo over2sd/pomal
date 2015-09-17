@@ -100,6 +100,7 @@ sub findIn {
 		print "($v)<<";
 	}
 	unless (defined $a[$#a] and defined $v) {
+#		print "Found '$v' (" . @a . ")\n";
 		die "FATAL: findIn was not sent a \$SCALAR and an \@ARRAY as required" . lineNo() . "\n";
 		return -1;
 	}
