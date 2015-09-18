@@ -98,10 +98,14 @@ sub getFileName {
 	my ($caller,$parent,$guir,$title,$action,$oktext,$filter) = @_;
 	unless (defined $parent) { $parent = $$guir{mainWin}; }
 	$$guir{status}->push("Choosing file...");
-	my $filebox = Prima::OpenDialog->new(
+	my $filebox = ($action eq 'open' ? Prima::OpenDialog->new(
 		filter => $filter,
 		fileMustExist => 1
-	);
+	) : Prima::SaveDialog->new(
+		filter => $filter,
+		multiSelect => 0,
+		noReadOnly => 1,
+	));
 	my $filename = undef;
 	if ($filebox->execute()) {
 		$filename = $filebox->fileName;

@@ -175,6 +175,7 @@ sub doQuery {
 			return $dbh->errstr;
 		}
 	} elsif ($qtype == 3){
+		# get multiple rows as hashrefs; requires a primary key!
 		unless (@parms) {
 			warn "Required field not supplied for doQuery(3). Give field name to act as hash keys in final parameter.\n";
 			return ();
@@ -188,9 +189,17 @@ sub doQuery {
 	} elsif ($qtype == 5){
 		$safeq->execute(@parms);
 		$realq = $safeq->fetchrow_arrayref();
-	} elsif ($qtype == 6){ # returns a single row in a hashref; use with a primary key!
+	} elsif ($qtype == 6){ # returns a single row in a hashref; use for getting a single row with its column names
 		$safeq->execute(@parms);
 		$realq = $safeq->fetchrow_hashref();
+	} elsif ($qtype == 7){ # returns arrayref containing a scalar for each row; use for getting all of a single column
+		$safeq->execute(@parms);
+		$realq = $safeq->fetchall_arrayref();
+		my $realout = [];
+		foreach (@$realq) {
+			push(@$realout,$$_[0]);
+		}
+		$realq = $realout;
 	} else {
 		warn "Invalid query type";
 	}

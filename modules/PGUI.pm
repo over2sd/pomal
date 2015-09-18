@@ -14,7 +14,7 @@ sub buildMenus { #Replaces Gtk2::Menu, Gtk2::MenuBar, Gtk2::MenuItem
 	my $menus = [
 		[ '~File' => [
 			['~Import', 'Ctrl-O', '^O', sub { importGUI() } ],
-			['~Export', sub { message('export!') }],
+			['~Export', sub { exportGUI() }],
 #			['~Synchronize', 'Ctrl-S', '^S', sub { message('synch!') }],
 			['~Preferences', sub { return callOptBox($gui); }],
 			[],
@@ -243,6 +243,31 @@ sub importGUI {
 	### Later, put selection here for type of import to make
 	# For now, just allowing import of MAL XML file
 	PGK::refreshUI($gui,$dbh) unless(Import::importXML($dbh,$gui));
+}
+print ".";
+
+sub exportGUI {
+	use Export qw( exportParts );
+	my $gui = PGK::getGUI();
+	my $dbh = FlexSQL::getDB();
+	### Later, put selection here for type of export to make
+	my $target = $$gui{questionparent};
+	$target->bring_to_front();
+	my $exbox = $target->insert( VBox => name => "export");
+	my $value = 0;
+	my $xb = $exbox-> insert( XButtons => name => 'type', pack => {fill => 'x'} );
+	$xb->arrange("left"); # line up buttons horizontally
+	my @presets = ('series',"Episodes",'pub',"Chapters and Volumes");
+	my $current = 0;
+	$xb-> build("Export type:",$current,@presets); # turn key:value pairs into exclusive buttons
+	$exbox->insert( SpeedButton => text => "Export", pack => { fill => 'x' }, onClick => sub { $value = $xb->value; $exbox->destroy(); $exbox = undef; });
+	while ($exbox) {
+		PGK::Pwait(1);
+	}
+	$target->insert( Label => text => "Please wait while export processes...");
+	Export::exportParts($dbh,$gui,$value);
+	$target->empty();
+	$target->send_to_back();
 }
 print ".";
 
