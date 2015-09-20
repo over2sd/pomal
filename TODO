@@ -27,6 +27,7 @@ Put jitload option on screen with initial DB fields
 = Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
 FIX: Verb in Recent tab for manga
 Export/Import of episode data
+FIX PGUI:1285 text error
 
 v0.2:
 -----

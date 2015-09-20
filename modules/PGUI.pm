@@ -1233,7 +1233,7 @@ sub checkTitle {
 	my $likename = ($2 or $1);
 	unless (length($likename) > 1) {
 		my $err = "You must supply checkTitle with a title.";
-		errorOut('inline',-1,{string => $err});
+		Common::errorOut('inline',-1,{string => $err});
 		PGK::sayBox($target,$err);
 		return -1;
 	}
@@ -1258,6 +1258,8 @@ sub checkTitle {
 		}
 		$query->empty();
 		$query->destroy();
+	} else {
+		$id = -2; # not found, so not asking. Title needs new ID.
 	}
 	return $id;
 }
@@ -1280,9 +1282,9 @@ sub switchToStatus {
 		}
 	}
 	# and load a new box into it if that status is not found.
+	my $boxtext = ($button->text or "$typ/$stat" or "?");
 	print "Emptying box..." if (FIO::config('UI','jitload') or 0) and (1 or FIO::config('Debug','v')); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
 	$target->empty() if (FIO::config('UI','jitload') or 0); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
-	my $boxtext = ($button->text or "$typ/$stat" or "?");
 	my ($x,$y,$w,$h) = @$placement;
 	$::application->yield();
 	my $box = $target->insert( VBox => name => "$typ$stat", place => { in => $target, relx => 0, x => $x, rely => 1, y => $y, anchor => 'nw', }, sizeMin => [$w,$h]);

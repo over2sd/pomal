@@ -197,11 +197,11 @@ sub getRealID {
 	$idtable = 'extpid' if $table eq 'pub';
 	die "Bad table $table passed to getRealID! at " . lineNo() . "\n" if $table eq 'bogus';
 	my $idtable = $dbh->quote_identifier($idtable);
-	my $criteria = (FIO::config('DB','likefilter') or qr/(\w+)/);
+	my $criteria = qr/(\w+[\.-]?\w+)/; # ); (FIO::config('DB','likefilter') or 
 	if ($column eq $dbh->quote_identifier('usr')) {
 		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable,$criteria);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
-		return -1 if $idnum == -1;
+		return (-1,-1) if $idnum == -1;
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},0);
 		print "[I] Gave new ID#$idnum to user-entered title. " if FIO::config('Debug','v') > 4;
 		return (0,$idnum);
@@ -212,7 +212,7 @@ sub getRealID {
 	} else {
 		my $idnum = PGUI::checkTitle($dbh,$target,$$data{$keys[0]},$safetable,$criteria);
 		return (1,$idnum) unless $idnum < 0; # Before creating a new row, check for name to see if it was imported from another tracking site or entered previously
-		return -1 if $idnum == -1;
+		return (-1,-1) if $idnum == -1;
 		$idnum = FlexSQL::getNewID($dbh,$safetable,$$data{$keys[0]},$$data{$keys[1]});
 		my $err = FlexSQL::doQuery(2,$dbh,"INSERT INTO $idtable ($safeid,$column) VALUES (?,?)",$idnum,$$data{extid});
 		die "Error: $err" if $error;
