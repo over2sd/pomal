@@ -22,12 +22,17 @@ v0.1:
 = Manual entry of titles
 change title status button (move icon)
 Start rewatching show button (use previous track (|<<) icon to save button space?)
+Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
+= if notabs option turned on, fillPage keeps SQL result and displays only the first n titles, adds forward/back buttons to view more ^^ this is same as previous line
+Add more forward/back button options
 Put jitload option on screen with initial DB fields
 = FIX: insertDateWidget premature closure
-= Option: UI,jitload - Instead of loading all titles (a slow process on older machines), just load one viewer full of the titles for the selected status, and load other statuses into it as the user needs them.
 FIX: Verb in Recent tab for manga
 Export/Import of episode data
-FIX PGUI:1285 text error
+FIX PGUI:1285 marked text error
+FIX PGUI:624 target error (add anime)
+= Option: UI,notabs - tabs no longer work properly on my machine (not sure if this is an error in my new config or in Prima), so I need to make an option for not using the notebook container. Also, scrolled notebook tabs sometimes don't scroll all the way to the bottom, which would also be eliminated by an option that doesn't use them.
+Notabs UI for Options dialog, too.
 
 v0.2:
 -----

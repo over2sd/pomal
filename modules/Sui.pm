@@ -55,15 +55,41 @@ sub getTitlesByStatus {
 	my %stas = getStatIndex();
 	my %rows;
 	my @parms;
+	my ($lim,$off,$letter) = (0,0,'all');
+	foreach (keys %exargs) {
+#print " $_:$exargs{$_} ";
+		for ($_) {
+			if (/limit/) {
+				$lim = ($exargs{$_} or 0);
+			} elsif (/offset/) {
+				$off = ($exargs{$_} or 0);
+			} elsif (/begins/) {
+				$letter = ($exargs{$_} or 0);
+			}
+		}
+	}
 	my $st = "SELECT " . ($rowtype eq 'series' ? "sid,episodes,sname" : "pid,chapters,volumes,lastreadv,pname") . " AS title,status,score,";
 	$st = $st . ($rowtype eq 'series' ? "lastrewatched,lastwatched,seentimes" : "lastreread,lastreadc,readtimes") . " FROM ";
-	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE status=?" . ($status eq 'wat' ? " OR status=?" : "");
-##		TODO here: max for movies/stand-alone manga
-	$st = $st . " LIMIT ? " if exists $exargs{limit};
+	$st = $st . $dbh->quote_identifier($rowtype) . " WHERE (status=?" . ($status eq 'wat' ? " OR status=?)" : ")");
 	push(@parms,$stas{$status});
 	if ($status eq 'wat') { push(@parms,$stas{rew}); }
-	push(@parms,$exargs{limit}) if exists $exargs{limit};
+	my $prefix = ($rowtype eq 'series' ? 's' : 'p');
+	if (not defined $letter or $letter eq 'all') {
+		# do nothing
+	} elsif ($letter eq '#') {
+		$st = $st . " AND ${prefix}name NOT REGEXP '^[A-Za-z]'";
+	} else {
+		$st = $st . " AND ${prefix}name REGEXP '^$letter'";
+	}
+##		TODO here: max for movies/stand-alone manga
+	$st = $st . " ORDER BY ? ASC" if exists $exargs{sortkey};
+	push(@parms,$exargs{sortkey}) if exists $exargs{sortkey};
+#	$st = ($st . " LIMIT ?") if ($lim > 0);
+#	$st = ($st . ", ?") if ($off > 0 and $lim > 0);
+#	push(@parms,$off) if ($off > 0 and $lim > 0);
+#	push(@parms,$lim) if ($lim > 0);
 	my $key = ($rowtype eq 'series' ? 'sid' : 'pid');
+	$st = $st . ";";
 #	print "$st (@parms)=>";
 	my $href = FlexSQL::doQuery(3,$dbh,$st,@parms,$key);
 	return $href;
@@ -114,6 +140,7 @@ sub getOpts {
 		'03b' => ['c',"Refresh pages when title is moved",'moveredraw'],
 ##		'03c' => ['c',"Move to active when changing parts seen",'incmove'],
 		'03d' => ['x',"Background for list tables",'listbg',"#EEF"],
+		'043' => ['x',"Background for letter buttons",'letterbg',"#CFC"],
 		'03e' => ['n',"Shorten titles to this length",'titlelimit',30,15,300,1,10],
 		'03f' => ['c',"Title score with a knob instead of a slider",'knobscore'],
 		'040' => ['c',"Show a horizontal rule between rows",'rulesep'],

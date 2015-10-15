@@ -57,6 +57,7 @@ sub fillPage {
 		elsif (/sam/) { $exargs{max} = 1; }
 		elsif (/sug/) { warn "Suggestions are not yet supported"; return; }
 		elsif (/rec/) {
+			return if (config('UI','notabs')); # no tabs option creates its own recent box.
 			$$gui{status}->text("Preparing recent activity box...");
 			$::application->yield();
 			$snote = $$gui{tabbar}->insert_to_page($index, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, pady => 3, side => "top",}, alignment => ta::Left, );
@@ -145,7 +146,7 @@ sub fillPage {
 			$::application->yield();
 			$page = $pages{$_};
 			$target = $snote->insert_to_page($page, VBox => name => "$typ$_", pack => { fill => 'both', expand => 1, }, );
- 			my $h = pullRows($dbh,$target,$typ,$_,$$labeltexts[$page],%exargs);
+ 			my $h = pullRows($dbh,$target,$typ,$_,$$labeltexts[$page],undef,%exargs);
 			if (FIO::config('Table','statsummary')) { # put in a label/box of labels with statistics (how many titles, total episodes watched, mean score, etc.)
 				my ($list,@stats) = insertStats($snote,($typ eq 'man' ? 'pub' : 'series'),$h,$watched);
 				push(@cumulativescores,@$list);
@@ -297,9 +298,15 @@ sub populateMainWin {
 		elsif (/rec/) { push(@tabtexts,(config('Custom',$_) or "Recent")); }
 		else { push(@tabtexts,"Unknown"); }
 	}
+	$$gui{tablist} = \@tabs;
 	$$gui{questionparent} = $$gui{mainWin}->insert( VBox => name => 'qparent', place => { fill => 'both', expand => 0, relx => 0, rely => 1, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
 	my $waiter = $$gui{mainWin}->insert( Label => text => "Building display.\nPlease wait...", pack => { fill => 'x', expand => 1, }, valign => ta::Center, alignment => ta::Center, font => applyFont('bighead'), autoHeight => 1, );
 	$::application->yield();
+	if (config('UI','notabs')) {
+		populateWithoutTabs($dbh,$gui,$refresh,\%exargs,$$gui{tablist},@tabtexts);
+		$waiter->destroy();
+		return;
+	}
 	my $profile = {
 		style => tns::Simple,
 		tabs => \@tabtexts,
@@ -314,7 +321,6 @@ sub populateMainWin {
 		$note = $$gui{mainWin}->insert( 'Prima::TabbedNotebook' => %$profile);
 	}
 	$$gui{tabbar} = $note; # store for additional tabs
-	$$gui{tablist} = \@tabs;
 	$note->hide();
 	foreach (0..$#tabs) {
 		fillPage($dbh,$_,$tabs[$_],$gui);
@@ -330,6 +336,99 @@ sub populateMainWin {
 	$note->pageIndex((FIO::config('UI','recenttab') and FIO::config('Recent','activerecent') ? getTabByCode('rec') : 0));
 	$$gui{status}->text("Ready.");
 	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('Recent','activerecent'));
+}
+print ".";
+
+sub populateWithoutTabs {
+	my ($dbh,$gui,$refresh,$exargs,$tablist,@tabtexts) = @_;
+	$$gui{buttonbar} = $$gui{mainWin}->insert( HBox => name => 'pager', pack => { fill => 'x', expand => 0, } );
+	$$gui{dispboxes} = [];
+	$$exargs{limit} = config('UI','titlesperpage') if (config('UI','titlesperpage') or 0);
+	foreach (0..$#$tablist) {
+		my $box;
+		if ($$tablist[$_] eq 'rec') {
+			print "Recent\n";
+			$box = $$gui{mainWin}->insert( VBox => name => $$tablist[$_], place => { fill => 'both', expand => 0, relx => 0, rely => 0.9, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
+			$$gui{recent} = $box;
+			$box->insert( SpeedButton => text => "Show Recent", onClick => sub { spreadRecent($dbh,$$gui{recent}); });
+		} else {
+			$box = $$gui{mainWin}->insert( VBox => name => $$tablist[$_], place => { fill => 'both', expand => 0, relx => 0, rely => 0.9, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
+			my $status = $box-> insert( XButtons => name => 'stat' );
+			$status->arrange("left"); # line up buttons horizontally
+			my @order = Sui::getStatOrder;
+			my %statuses = Sui::getStatHash($box->name);
+			my @presets;
+			foreach (@order) {
+				push(@presets,$_,$statuses{$_});
+			}
+			$status->build("Status:",0,@presets); # turn key:value pairs into exclusive buttons
+			my $hb = $box->insert( HBox => name => 'layout', pack => {fill => 'both', expand => 1});
+			my @lettergroup;
+			my $page = $$tablist[$_];
+			die "[E] Bad table name passed to populateWithoutTabs" if (Common::findIn($page,qw[ani mov sab man]) < 0);
+			my $table = (($page eq 'ani' or $page eq 'mov') ? 'series' : 'pub');
+			unless (config('UI','dynamicletters')) {
+				@lettergroup = ('#','A'..'Z','all');
+			} else {
+				my $lettergetter = "SELECT LEFT(" . substr($table,0,1) . "name,1) AS letter FROM $table WHERE " . substr($table,0,1) . "name IS NOT NULL GROUP BY letter;";
+				$lettergetter = FlexSQL::doQuery(7,$dbh,$lettergetter);
+				die "OUCH! $dbh->errstr" unless @$lettergetter;
+				@lettergroup = (@$lettergetter,'all');
+			}
+			my $letters1 = $hb->insert( VBox => name => '#-M', pack => { fill => 'y', expand => 0}, backColor => convertColor((config('UI','letterbg') or '#CCCCFF')));# build letter buttons
+			my $letters2 = $hb->insert( VBox => name => 'N-Z', pack => { fill => 'y', expand => 0}, backColor => convertColor((config('UI','letterbg') or '#CCCCFF')));
+			my $titlebox = $hb->insert( VBox => name => $tabtexts[$_], pack => { fill => 'both', expand => 1, }, backColor => convertColor(config('UI','listbg') or '#eef'));# build target box
+			$status->onChange( sub { fillBoxwithTitles($dbh,'all',$page,$status->value,$gui,$titlebox,$exargs); });
+			foreach (@lettergroup[0..$#lettergroup/2]) {
+				my $text = "$_";
+				$letters1->insert( SpeedButton => text => $text, onClick => sub { fillBoxwithTitles($dbh,$text,$page,$status->value,$gui,$titlebox,$exargs); }, backColor => convertColor((config('UI','letterbg') or '#CCCCFF')));
+			}
+			foreach (@lettergroup[$#lettergroup/2+1..$#lettergroup]) {
+				my $text = "$_";
+				$letters2->insert( SpeedButton => text => $text, onClick => sub { fillBoxwithTitles($dbh,$text,$page,$status->value,$gui,$titlebox,$exargs); }, backColor => convertColor((config('UI','letterbg') or '#CCCCFF')));
+			}
+			fillBoxwithTitles($dbh,undef,$$tablist[$_],$status->value,$gui,$titlebox,$exargs);
+		}
+		$box->send_to_back() unless ($$tablist[$_] eq 'ani' or ($$tablist[$_] eq 'rec' and config('Recent','activerecent')));
+		$$gui{buttonbar}->insert( SpeedButton => text => $tabtexts[$_], onClick => sub { $box->bring_to_front(); });
+	}
+	$::application->yield();
+	$$gui{status}->text("Ready.");
+	spreadRecent($dbh,$$gui{recent}) if (FIO::config('UI','recenttab') and FIO::config('Recent','activerecent'));
+}
+print ".";
+
+sub fillBoxwithTitles {
+	my ($dbh,$letter,$table,$stat,$gui,$target,$exargs) = @_;
+	$target->empty();
+	my $showing = "Currently showing: ";
+	if (not defined $letter or $letter eq 'all') {
+		$showing = $showing."All ";
+		delete $$exargs{begins} if exists $$exargs{begins};
+	}
+	my %stats = Sui::getStatHash($table);
+	my $status = $stats{$stat};
+	my $statusadj = $status;
+	$statusadj =~ s/ /-/g;
+	$showing = $showing."$statusadj titles";
+	unless (not defined $letter or $letter eq 'all') {
+		$showing = "$showing beginning with $letter";
+		$$exargs{begins} = $letter;
+	}
+	my ($lim,$off) = (0,0);
+	foreach (keys %$exargs) {
+print "$_:$$exargs{$_}";
+		for ($_) {
+			if (/limit/) {
+				$lim = ($$exargs{$_} or 0);
+			} elsif (/offset/) {
+				$off = ($$exargs{$_} or 0);
+			}
+		}
+	}
+	my $showlbl = $target->insert( Label => text => $showing, pack => { fill => 'none', expand => 0});
+	my $h = switchToStatus($dbh,$target,$table,$stat,0,$showlbl,undef,%$exargs);
+	$target->insert( Label => text => "$table/$stat:".($letter or "none"));
 }
 print ".";
 
@@ -1107,8 +1206,8 @@ sub spreadRecent {
 				my ($bars,$frames,$max,$tname,$tprog,$status,$tid,$rated) = ([],20,$$subres{$$_[0]}{$fields{$key}[2] . "s"},$$subres{$$_[0]}{$fields{$key}[5]},$$subres{$$_[0]}{($$subres{$$_[0]}{status} == 3 ? $fields{$key}[8] : $fields{$key}[7])},$$subres{$$_[0]}{status},$$_[0],$$subres{$$_[0]}{score});
 				print "$tname was last active on $date.\n" if (FIO::config('Debug','v'));
 				my $lab = $recent->insert( Label => text => "$date: $tname", alignment => ta::Left, pack => {fill => 'x'});
-				my $row = $recent->insert( HBox => name => "$$_[0] row", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 2, pady => 11, );
-				my $barbox = $row->insert( HBox => name => "$$_[0] bars", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 2, pady => 3, );
+				my $row = $recent->insert( HBox => name => "$$_[0] row", alignment => ta::Left, pack => {fill => 'x', expand => 0}, ipady => 1, pady => 4, );
+				my $barbox = $row->insert( HBox => name => "$$_[0] bars", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 1, pady => 1, );
 				$cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=? ORDER BY %s ASC;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
 				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid);
 				my ($scores,$suggested) = (0,0);
@@ -1129,7 +1228,7 @@ sub spreadRecent {
 				}
 				$row->insert( Widget => name => 'spacer', pack => {fill => 'x', expand => 1, }, sizeMax => [1000,10]);
 				my $uform = ($key eq "series" ? ($status == 3 ? 1 : 0 ) : ($status == 3 ? 3 : 2 ) );
-				unless ($status == 4 or $tprog == $max) {
+				unless ($status == 4 or $tprog >= $max) {
 					$tprog++;
 					$row->insert( SpeedButton =>
 						text => "Watch $fields{$key}[2] $tprog",
@@ -1268,47 +1367,72 @@ print ".";
 sub switchToStatus {
 	my ($dbh,$target,$typ,$stat,$buttonbar,$button,$placement,%exargs) = @_;
 # DB handle, target, title type (a/m), status, container of buttons to enable, button to disable
-	foreach ($buttonbar->get_widgets) {
-		$_->checked(0);
-		$_->enabled(1); # enable all buttons
-		$button = $_ if (not defined $button and $_->name eq $stat);
-	}
-	$button->checked(1) if defined $button; # otherwise, oops?
-	$button->enabled(0) if defined $button; # otherwise, oops?
-	foreach ($target->get_widgets) { # which will check target for that status...
-		if ($_->name eq "$typ$stat") {
-			$_->bring_to_front();
-			return;
+	unless (config('UI','notabs')) {
+		foreach ($buttonbar->get_widgets) {
+			$_->checked(0);
+			$_->enabled(1); # enable all buttons
+			$button = $_ if (not defined $button and $_->name eq $stat);
+		}
+		$button->checked(1) if defined $button; # otherwise, oops?
+		$button->enabled(0) if defined $button; # otherwise, oops?
+		foreach ($target->get_widgets) { # which will check target for that status...
+			if ($_->name eq "$typ$stat") {
+				$_->bring_to_front();
+				return;
+			}
 		}
 	}
 	# and load a new box into it if that status is not found.
+##1285 ERROR?
 	my $boxtext = ($button->text or "$typ/$stat" or "?");
-	print "Emptying box..." if (FIO::config('UI','jitload') or 0) and (1 or FIO::config('Debug','v')); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
-	$target->empty() if (FIO::config('UI','jitload') or 0); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
-	my ($x,$y,$w,$h) = @$placement;
+#	print "Emptying box..." if (FIO::config('UI','jitload') or 0) and (1 or FIO::config('Debug','v')); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
+	$target->empty() if (FIO::config('UI','jitload') or config('UI','notabs') or 0); # if jit-load enabled, this will clear the target of other status boxes before inserting new box.
 	$::application->yield();
-	my $box = $target->insert( VBox => name => "$typ$stat", place => { in => $target, relx => 0, x => $x, rely => 1, y => $y, anchor => 'nw', }, sizeMin => [$w,$h]);
-	my $rows = pullRows($dbh,$box,$typ,$stat,$boxtext,%exargs);
-	foreach ($target->get_widgets) { # which will check target for that status...
-		if ($_->name eq "$typ$stat") {
-			$_->bring_to_front();
+	my $rows;
+	unless (config('UI','notabs')) {
+		my ($x,$y,$w,$h) = @$placement;
+		my $box = $target->insert( VBox => name => "$typ$stat", place => { in => $target, relx => 0, x => $x, rely => 1, y => $y, anchor => 'nw', }, sizeMin => [$w,$h]);
+		$rows = pullRows($dbh,$box,$typ,$stat,$boxtext,undef,%exargs);
+		foreach ($target->get_widgets) { # which will check target for that status...
+			if ($_->name eq "$typ$stat") {
+				$_->bring_to_front();
+			}
 		}
+	} else {
+		$rows = pullRows($dbh,$target,$typ,$stat,$boxtext,undef,%exargs);
 	}
 	return $rows;
 }
 print ".";
 
 sub pullRows {
-	my ($dbh,$target,$typ,$stat,$text,%exargs) = @_;
+	my ($dbh,$target,$typ,$stat,$text,$h,%exargs) = @_;
 	my $sortkey = 'title';
+	$exargs{sortkey} = $sortkey;
+	$exargs{offset} = ($exargs{offset} or 0); 
+	my $rowtyp = ($typ eq 'man' ? 'pub' : 'series');
 	# %exargs allows limit by parameters (e.g., at least 2 episodes (not a movie), at most 1 episode (movie))
 	# $exargs{maxparts} = 1
 	# getTitlesByStatus will put Watching (1) and Rewatching (3) together unless passed "rew" as type.
-	my $rowtyp = ($typ eq 'man' ? 'pub' : 'series');
-	my $h = Sui::getTitlesByStatus($dbh,$rowtyp,$stat,%exargs);
+	unless ($h) {
+		$h = Sui::getTitlesByStatus($dbh,$rowtyp,$stat,%exargs);
+	}
+#print scalar keys(%$h) . " rows pulled\n";
 	my @keys = Common::indexOrder($h,$sortkey);
 	# make a label
-	my $label = $target->insert( Label => text => $text, pack => { fill => 'y', expand => 0, side => "left", padx => 5, }, font => applyFont('label'), );
+	my $fulltext = $text;
+	if ($exargs{limit}) {
+		my $off = $exargs{offset}; my $lim = $exargs{limit};
+		@keys = splice(@keys,$off,$lim);
+		$fulltext = "$fulltext (" . ($off + 1) ."-" . ($off + @keys) . ")";
+		unless (scalar @keys < $exargs{limit} and $exargs{offset} == 0) {
+			my $navbox = $target->insert( HBox => name => "navigation bar", pack => { fill => 'x', expand => 0});
+			$navbox->insert( SpeedButton => text => "|<", onClick => sub { $target->empty; $exargs{offset} = 0; pullRows($dbh,$target,$typ,$stat,$text,$h,%exargs); }) if $exargs{offset} != 0;
+			$navbox->insert( SpeedButton => text => "<", onClick => sub { $target->empty; $exargs{offset} -= $exargs{limit}; pullRows($dbh,$target,$typ,$stat,$text,$h,%exargs); }) if $exargs{offset} >= $exargs{limit};
+			$navbox->insert( SpeedButton => text => ">", onClick => sub { $target->empty; $exargs{offset} += $exargs{limit}; pullRows($dbh,$target,$typ,$stat,$text,$h,%exargs); }) unless (scalar @keys < $exargs{limit});
+		}
+	}
+	my $label = $target->insert( Label => text => $fulltext, pack => { fill => 'y', expand => 0, side => "left", padx => 5, }, font => applyFont('label'), );
 ##	print "Looking for " . $typ . "/" . $stat . "...";
 	my $table = $target->insert( VBox => name => "${stat}table", backColor => (convertColor(config('UI','listbg') or "#eef")), pack => { fill => 'both', expand => 1, side => "left", padx => 5, pady => 5, }, );
 ###	TODO: push table to $gui's list of tables
@@ -1321,7 +1445,10 @@ sub pullRows {
 	$::application->yield();
 	buildTitleRows("head",$table,$tlist,0,'h');
 	# fill the box with titles
-	buildTitleRows($rowtyp,$table,$h,0,@keys);
+	buildTitleRows($rowtyp,$table,$h,($exargs{offset} or 0),@keys);
+	unless (scalar @keys) {
+		$table->insert( Label => text => "There are no " . ($exargs{offset} ? "more " : " ") . "results to display.", pack => {fill => 'x', expand => 1});
+	}
 	return $h;
 }
 print ".";

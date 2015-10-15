@@ -344,7 +344,7 @@ print ".";
 
 sub defineAllValues {
 	my $ref = shift;
-	foreach (keys {% $ref }) {
+	foreach (keys %{ $ref }) {
 #print $_ unless defined $$ref{$_};
 		$$ref{$_} = '' unless defined $$ref{$_};
 	}

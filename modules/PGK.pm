@@ -336,6 +336,7 @@ sub stringToFont {
 		my $newfont = {
 			name => $1,
 			size => $2,
+			scalable => 0,
 		};
 		return $newfont;
 	} else {
