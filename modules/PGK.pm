@@ -1,10 +1,11 @@
 package PGK; # Prima Graphic Kit
+$|++;
 
 print __PACKAGE__;
 
 require Exporter;
 @ISA = qw(Exporter);
-@EXPORT = qw( ColorRow FontRow VBox HBox Table applyFont getGUI convertColor labelBox sayBox Pdie Pwait );
+@EXPORT = qw( ColorRow FontRow VBox HBox Table applyFont getGUI convertColor labelBox sayBox Pdie Pwait Pager );
 use Prima qw(Application Buttons MsgBox FrameSet);
 
 use FIO qw( config );
@@ -439,6 +440,14 @@ print ".";
 package VBoxE; #Replaces Gtk2::VBox
 use vars qw(@ISA);
 @ISA = qw(Prima::Widget);
+
+sub insert {
+	my ($self,$class,@args) = @_;
+	my $child = $self->SUPER::insert($class,@args);
+	$child->place( anchor => 'nw', relx => 0, rely => 1, relwidth => 0.99, relheight => 0.99);
+	return $child;
+}
+
 
 =item empty
 
@@ -925,6 +934,112 @@ sub remainder_column { # Sets remainder column. -1 will right-justify table if t
 	$_[0]->{remainder_column} = $_[1]; # A valid table column will designate a remainder column, which will result in a column with dynamic right padding width.
 }
 print "."; # end of Table
+
+package Pager;
+
+=head2 Pager
+
+Page set object with a means to switch between them.
+
+=head3 Usage
+
+ my $pages = $parent->insert( Pager => name => 'pager' );
+ $pages->build('page1','page2','page3');
+ 
+=head3 Methods
+
+=cut
+
+use vars qw(@ISA);
+@ISA = qw(HBox);
+
+
+sub profile_default {
+	my $def = $_[ 0]-> SUPER::profile_default;
+	my %prf = (
+		pagecount => 1, # next page
+		pages => [], # list of panels
+		tabs => [], # texts for selection
+		order => {}, # value/page pairs
+		panels => undef, # container for panels
+	);
+	@$def{keys %prf} = values %prf;
+	return $def;
+}
+
+sub init {
+	my $self = shift;
+	foreach (qw( pagecount )) {
+		$self->{$_} = 0;
+	}
+	foreach (qw( pages tabs )) {
+		$self->{$_} = [];
+	}
+	foreach (qw( order selector )) {
+		$self->{$_} = {};
+	}
+#	$self->{cellMargin} = 5;
+	my %profile = $self-> SUPER::init(@_);	
+	return %profile;
+}
+
+=item build
+
+Builds the necessary parts of the panel set.
+
+=cut
+
+sub build {
+	my ($self,@tabs) = @_;
+	$self->{tabs} = \@tabs;
+	unless (scalar @{ $self->{tabs} } ) {
+		print "[E] You cannot build this without any tabs!\n";
+		return -1;
+	} else { # build row for dropbox
+		$self->{selector} = $self->SUPER::insert( ComboBox => style => cs::Simple, text => $self->{tabs}[0], items => $self->{tabs}, pack => { fill => 'y', expand => 0, padx => 5}, editProfile => {visible => 0});
+		$self->{panels} = $self->SUPER::insert( VBoxE => name => 'panelholder', pack => { fill => 'both', expand => 1, } );
+		# connect each page to a value in the dropbox:
+		$self->{selector}->onChange( sub{ $self->switchToPanel($_[0]->text);} );
+	}
+	foreach (0..$#tabs) {
+		$self->{order}{$tabs[$_]} = $_; # build panel for each page in the tablist
+#print "$tabs[$_]:$self->{order}{$tabs[$_]}\n";
+	}
+}
+
+sub switchToPanel {
+	my ($self,$key) = @_;
+	my $index = ${ $self->{order} }{$key} or -1;
+	$index = $key if ($index < 0 and $key + 1 eq 1 + $key);
+	if ($index < 0) {
+		print "[E] Panel $key not found.\n";
+		return -1;
+	}
+	$self->{pages}[$index]->bring_to_front() if defined $self->{pages}[$index];
+	return 0;
+}
+
+sub insert {
+	my $self = shift;
+	my $page = $self-> {pagecount}; 
+	return $self-> insert_to_page( $page, @_); # a fallback in case user calls insert, like other widgets
+}
+
+sub insert_to_page {
+	my $self  = shift;
+	my $page  = shift;
+	$page = $self-> {pagecount} if $page > $self-> {pageCount} || $page < 0;
+
+	my $child = $self->{panels}->insert(@_); # create the child
+	$self->{pages}[$page] = $child;
+	$child->send_to_back();
+	$self-> {pagecount}++;
+#	my @tabs = @{ $self->{tabs} };
+	# if page gt length of @tabs, do something?
+	return $child;
+}
+
+
 
 package PGK;
 

@@ -11,8 +11,8 @@ use External qw( getTags );
 print ".";
 
 sub importXML {
-	my ($dbh,$gui) = @_;
-	my $filetoopen = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose a file to import",'open',"Import",External::getFileFilters());
+	my ($dbh,$gui,$filetoopen) = @_;
+	(defined $filetoopen) || ($filetoopen = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose a file to import",'open',"Import",External::getFileFilters()));
 	my $res;
 	if (defined $filetoopen) {
 		PGUI::Pwait(1.5); # let the dialog box close before dominating the processor...

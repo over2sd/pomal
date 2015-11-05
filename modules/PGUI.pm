@@ -241,9 +241,10 @@ sub importGUI {
 	use Import qw( importXML );
 	my $gui = PGK::getGUI();
 	my $dbh = FlexSQL::getDB();
+	my $filename = PGK::askbox($$gui{mainWin},"Enter a filename",undef,"Filename:");
 	### Later, put selection here for type of import to make
 	# For now, just allowing import of MAL XML file
-	PGK::refreshUI($gui,$dbh) unless(Import::importXML($dbh,$gui));
+	PGK::refreshUI($gui,$dbh) unless(Import::importXML($dbh,$gui,$filename));
 }
 print ".";
 
@@ -493,6 +494,10 @@ sub buildTitleRows {
 		my $title = $row->insert( Label => text => Common::shorten($record{title},30), pack => { fill => 'x', expand => 1, }, ); # put in the title of the series
 		unless ($title->text eq $record{title}) { $title->hint($record{title}); } # if I shortened the title, make the full title available in a tooltip
 		applyFont('body',$title);
+		$title->onClick(sub {
+			my $qbox2 = getGUI('mainWin')->insert( VBox => name => 'qparent', place => { fill => 'both', expand => 0, relx => 0, rely => 1, anchor => 'nw', relwidth => 1, relheight => 0.9, } );
+			tiDets($updater,$qbox2,$titletype,$k,$record{title},($record{status} == 4 ? "" : ($titletype eq 'series' ? ($record{status} == 3 ? "$record{lastrewatched}" : "$record{lastwatched}" ) : ($record{status} == 3 ? "$record{lastreread}" : "$record{lastreadc}" ))));
+			});
 		if ($titletype eq 'head') {
 			$title->backColor($headcolor);
 		}
@@ -876,15 +881,18 @@ sub unpackProgBox {
 print ".";
 
 sub editPortion {
+print join(', ',@_);
 	my ($displaytitle,$title,$part,$ptype,$vol) = @_;
 	my ($dets,$dorate) = (FIO::config('Main','askdetails'),FIO::config('Main','rateparts'));
-	return unless ($dets or $dorate); # not doing anything unless there's something to do.
+	return -1 unless ($dets or $dorate); # not doing anything unless there's something to do.
+	my $click = 0;
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
 	my $tabs = $$gui{tabbar};
-	$tabs->hide();
+	$tabs->hide() if defined $tabs;
 	$qbox->empty();
-	$qbox->insert( Label => text => "$displaytitle has been updated with $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
+	$qbox->bring_to_front();
+	$qbox->insert( Label => text => "$displaytitle: $part ${ptype}s completed.", font => applyFont('body'), autoheight => 1, pack => { fill => 'x', expand => 1,}, autoHeight => 1, alignment => ta::Center, );
 	my $values = {part => $part,};
 	my $st = {
 		'episode' => "SELECT * FROM episode WHERE sid=? AND eid=?;",
@@ -970,12 +978,12 @@ sub editPortion {
 			$target->insert( Label => text => "$res: " . (defined $dbh->errstr ? $dbh->errstr : 'unknown'));
 			$target->insert( Button => text => "Continue", onClick => sub {
 				$target->empty();
-				$parent->show();
+				$parent->show() if defined $parent;
 				$target->send_to_back();
 			});
 			return 2;
 		} else {
-			$parent->show();
+			$parent->show() if defined $parent;
 			$target->send_to_back();
 			return 0;
 		}
@@ -1002,13 +1010,18 @@ sub editPortion {
 	}
 	$qbox->insert( Label => text => ' ', pack => { fill => 'both', expand => 1 });
 	my $butbox = $qbox->insert( HBox => name => 'buttons');
-	$butbox->insert( Button => text => 'Set Details', onClick => sub { portionExecute($dbh,$title,$part,$ptype,$values,$qbox,$tabs,$vol); }, );
+	$butbox->insert( Button => text => 'Set Details', onClick => sub { $$values{date} = $date->text; portionExecute($dbh,$title,$part,$ptype,$values,$qbox,$tabs,$vol); $click = 2; }, );
 	$butbox->insert( Button => text => 'Skip Setting Details', onClick => sub {
-		$tabs->show();
+		$tabs->show() if defined $tabs;
 		$qbox->empty();
 		$qbox->send_to_back();
+		$click = 1;
 	} );
-# magic command that keeps function from returning until user presses button goes here???
+	$::application->yield();
+#	while ($click == 0) { # magic command that keeps function from returning until user presses button goes here
+#		$::application->yield();
+#		PGK::Pwait(1);
+#	}
 }
 print ".";
 
@@ -1019,7 +1032,8 @@ sub scoreTitle {
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
 	my $tabs = $$gui{tabbar};
-	$tabs->hide();
+	$tabs->hide() if defined $tabs;
+	$qbox->bring_to_front();
 	$qbox->empty();
 	my $st = {
 		'series' => "SELECT sid,sname,episodes,score FROM series WHERE sid=?",
@@ -1073,12 +1087,12 @@ sub scoreTitle {
 		my $result = FlexSQL::doQuery(2,$dbh,$st,@parms);
 		$caller->text(sprintf("%.1f",$score->value / 10));
 		$qbox->empty();
-		$tabs->show();
+		$tabs->show() if defined $tabs;
 		$qbox->send_to_back();
 	});
 	$buttons->insert( SpeedButton => text => "Cancel", onClick => sub {
 		$qbox->empty();
-		$tabs->show();
+		$tabs->show() if defined $tabs;
 		$qbox->send_to_back();
 	});
 	unless (FIO::config('Main','autoscore')) {
@@ -1268,7 +1282,7 @@ sub fillBoxwithBars {
 	foreach (@$mylist) {
 #		printf("%03d: $$_[1] (%s)\n",$$_[0],($$_[2] or "?"));
 		my ($k,$n,$inc) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
-		next unless $inc; # no need to make a bar for non-scored item
+#		next unless $inc; # no need to make a bar for non-scored item
 		my $val = 0;
 		if (FIO::config('UI','noanimate')) {
 			$val = $inc * $frames;
@@ -1276,6 +1290,14 @@ sub fillBoxwithBars {
 		$suggested += $inc;
 		$scores++;
 		my $this = $target->insert( Gauge => vertical => 1, value => $val, name => "$inc", hint => "$k ($n)", size => [($$exargs{width} or 28),($$exargs{height} or 100)],);
+		unless ($inc) {
+			if (defined $$exargs{title} and defined $$exargs{titleid} and defined $$exargs{part}) {
+				my @parms = ($$exargs{title},$$exargs{titleid},$k,$$exargs{part});
+				$this->onClick(sub { editPortion(@parms); });
+			} else {
+				warn "Required extra arguments were not provided" . Common::lineNo(1) . "\n";
+			}
+		}
 		push(@$bars,$this);
 		pulseBars($bars,$frames);
 	}
@@ -1464,6 +1486,46 @@ sub setStatus {
 	my ($dbh,$row,$icon,$status,$tid,$typ) = @_;
 	die "[E] setStatus really can't function without a DB handle, a status, and a title type and id.\n" unless (defined $dbh and defined $tid and defined $status and defined $typ);
 
+}
+print ".";
+
+sub tiDets {
+	my ($dbh,$target,$ttype,$titleid,$title,$max) = @_;
+	$target->bring_to_front(); # WARNING: target will be destroyed when we finish with it.
+	$target->insert(Label => text => "Details of title $title:", pack => { fill => 'x', expand => 0});
+
+	$target->insert(Label => text => ($ttype eq 'pub' ? 'Chapter' : 'Episode') . "s:",pack => { fill => 'x', expand => 0});
+	my $lab = $target->insert( Label => text => "Thinking...");
+	my $barbox = $target->insert( HBox => name => "ratebars", pack => { fill => 'x', expand => 1});
+	my %fields = (
+		pub => ['pid','firstread','chapter','cid','cname','pname',"Manga",'lastreadc','lastreread'],
+		series => ['sid','firstwatch','episode','eid','ename','sname',"Anime",'lastwatched','lastrewatched'],
+	);
+	my ($frames,$scores,$suggested,$bars) = (20,0,0,[]);
+	my $cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=? ORDER BY %s ASC;",$fields{$ttype}[3],$fields{$ttype}[4],$fields{$ttype}[2],$fields{$ttype}[0],$fields{$ttype}[3]);
+	my $subres = FlexSQL::doQuery(4,$dbh,$cmd,$titleid);
+	if ($subres) {
+		unless (FIO::config('Recent','hiddenepgraph')) {
+			($scores,$suggested) = fillBoxwithBars($barbox,0,$bars,$frames,$subres,{height => 30, width => 7,title => $title, titleid => $titleid, parts => ($ttype eq 'pub' ? 'chapter' : 'episode')});
+		} else {
+			foreach (@$subres) {
+				my ($k,$n,$s) = (sprintf("%03d",$$_[0]),($$_[2] or ""),$$_[1]);
+				$suggested += $s;
+				$scores++;
+				$barbox->insert( Label => text => $s, hint => "$k ($n)", margin => 2);
+			}
+		}
+		$lab->text("Total: $suggested" );
+	}
+	my $st = sprintf("SELECT %s FROM %s WHERE %s=? AND score NOT IN (NULL,0);",($ttype eq 'pub' ? 'cid' : 'eid'),($ttype eq 'pub' ? 'chapter' : 'episode'),($ttype eq 'pub' ? 'pid' : 'sid'));
+	my $result = (FlexSQL::doQuery(7,$dbh,$st,$titleid) or []);;
+	my $hb = $target->insert( HBox => name => "unrated", pack => { fill => 'x', expand => 1});
+	foreach (1 .. $max) {
+		if (scalar @$result && Common::findIn($_,@$result) != -1) { next; } # only rate episodes not found in list of rated episodes
+		my @parms = ($_, ($ttype eq 'pub' ? 'chapter' : 'episode'));
+		$hb->insert( SpeedButton => text => $_, onClick => sub { print "Firing $parms[0]!\n"; editPortion($title,$titleid,@parms); });
+	}
+	my $canc = $target->insert( Button => text => "Done", onClick => sub { $target->destroy(); });
 }
 print ".";
 

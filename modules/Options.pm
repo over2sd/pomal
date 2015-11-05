@@ -3,6 +3,7 @@ package Options;
 use strict;
 use warnings;
 use Prima qw(Application Buttons MsgBox FrameSet StdDlg Sliders Notebooks ComboBox);
+use PGK qw( Pager );
 print __PACKAGE__;
 
 use FIO qw( config );
@@ -32,13 +33,19 @@ sub mkOptBox {
 	}
 	if (defined config('UI','tabson')) { $args{orientation} = (config('UI','tabson') eq "bottom" ? tno::Bottom : tno::Top); } # set tab position based on config option
 	my $buttons = $vb->insert( HBox => name => 'buttons', pack => { fill => 'x', side => 'left',},);
-	my $pages = $vb->insert( TabbedScrollNotebook =>
-		style => tns::Simple,
-		tabs => \@tablist,
-		name => 'optionbox',
-		tabsetProfile => {colored => 0, %args, },
-		pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
-	);
+	my $pages;
+	unless (config('UI','notabs')) {
+		$pages = $vb->insert( TabbedScrollNotebook =>
+			style => tns::Simple,
+			tabs => \@tablist,
+			name => 'optionbox',
+			tabsetProfile => {colored => 0, %args, },
+			pack => { fill => 'both', expand => 1, pady => 3, side => "left", },
+		);
+	} else {
+		$pages = $vb->insert( Pager => name => 'optionbox', pack => {fill => 'both', expand => 1} );
+		$pages->build( @tablist, );
+	}
 	my ($curtab,$section);
 	my $spacer = $buttons->insert( Label => text => " ", pack => { fill => 'x', expand => 1, });
 	my $cancelB = $buttons->insert( Button => text => "Cancel", onClick => sub { $optbox->destroy(); });
@@ -63,6 +70,8 @@ sub mkOptBox {
 			return -1;
 		}
 	}
+#	$pages->{selector}->notify(q(Change)) if (config('UI','notabs')); # force a Change event to bring first panel to front.
+
 	return;
 }
 print ".";
