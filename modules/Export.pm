@@ -9,7 +9,8 @@ print ".";
 sub exportParts {
 	my ($dbh,$gui,$whole) = @_;
 	my $sb = PGK::getStatus();
-	my $filetowrite = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose an export filename",'save',"Export",[['XML data file (*.xml)' => '*.xml'],]);
+#	my $filetowrite = FIO::getFileName(undef,$$gui{mainWin},$gui,"Choose an export filename",'save',"Export",[['XML data file (*.xml)' => '*.xml'],]);
+	my $filetowrite = "export.xml";
 	my %parts = ( 'series' => 'episode', 'pub' => 'chapter');
 	my %keys = ('series' => 'sid', 'pub' => 'pid');
 	my $k = ($keys{$whole} or undef);
@@ -45,6 +46,7 @@ sub exportParts {
 	$root->appendChild($date);
 	# get name of title
 	my $cmd = sprintf("SELECT %s FROM %s WHERE $k=?;",($whole eq 'series' ? 'sname' : 'pname'),$whole);
+	my $cmd2 = sprintf("SELECT %s FROM %s WHERE $k=?;",'score',$whole);
 	foreach (@$res) {
 		my $name = FlexSQL::doQuery(0,$dbh,$cmd,$_);
 		$sb->text("Preparing $_:");
@@ -55,6 +57,11 @@ sub exportParts {
 		my $xname = $xmld->createElement('name');
 		$xname->appendChild(XML::LibXML::Text->new($name));
 		$title->appendChild($xname);
+		my $score = FlexSQL::doQuery(0,$dbh,$cmd2,$_);
+		next unless (defined $score and $score != 0);
+		my $xscore = $xmld->createElement('score');
+		$xscore->appendChild(XML::LibXML::Text->new($score));
+		$title->appendChild($xscore);
 		my ($a,$b,$c,$d) = ("${t}id","${t}name","first" . ($t eq 'e' ? 'watch' : 'read'),($t eq 'e' ? 'sid' : 'pid'));
 		$st = "SELECT * FROM ext$d WHERE $d=?;";
 		my $eres = FlexSQL::doQuery(6,$dbh,$st,$_);

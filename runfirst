@@ -68,6 +68,7 @@ case $delold in
 		echo "DROP DATABASE pomal;" >> rootset.msq
 		;;
 esac
+echo "CREATE DATABASE pomal;" >> rootset.msq
 
 # echo "The following prompt refers to the MySQL root password, not the system root password:"
 mysql -h $server -u root --password=${sqlpass} < rootset.msq

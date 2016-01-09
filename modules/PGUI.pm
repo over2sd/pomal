@@ -373,7 +373,11 @@ sub populateWithoutTabs {
 			} else {
 				my $lettergetter = "SELECT LEFT(" . substr($table,0,1) . "name,1) AS letter FROM $table WHERE " . substr($table,0,1) . "name IS NOT NULL GROUP BY letter;";
 				$lettergetter = FlexSQL::doQuery(7,$dbh,$lettergetter);
-				die "OUCH! $dbh->errstr" unless @$lettergetter;
+				unless (scalar @$lettergetter) {
+					my $count = FlexSQL::doQuery(0,$dbh,"SELECT COUNT(*) FROM $table;"); # this line detects brand new database!
+					die "OUCH! $dbh->errstr" if $count;	
+					$lettergetter = [];
+				}
 				@lettergroup = (@$lettergetter,'all');
 			}
 			my $letters1 = $hb->insert( VBox => name => '#-M', pack => { fill => 'y', expand => 0}, backColor => convertColor((config('UI','letterbg') or '#CCCCFF')));# build letter buttons
@@ -881,8 +885,8 @@ sub unpackProgBox {
 print ".";
 
 sub editPortion {
-print join(', ',@_);
 	my ($displaytitle,$title,$part,$ptype,$vol) = @_;
+print "$displaytitle, $title, $part, $ptype";
 	my ($dets,$dorate) = (FIO::config('Main','askdetails'),FIO::config('Main','rateparts'));
 	return -1 unless ($dets or $dorate); # not doing anything unless there's something to do.
 	my $click = 0;
@@ -1154,7 +1158,7 @@ sub askPortion {
 	my $gui = getGUI();
 	my $qbox = $$gui{questionparent};
 	my $tabs = $$gui{tabbar};
-	$tabs->hide();
+	$tabs->hide() if defined $tabs;
 	$qbox->empty();
 	my $rp = ($uptype % 2 ? '' : 're');
 	my ($key,$ptype,$ttype,$column) = ('sid','episodes','series',"last${rp}watched");
@@ -1188,20 +1192,22 @@ print ".";
 
 sub spreadRecent {
 	my ($dbh,$recent) = @_;
-	my $st = "SELECT DISTINCT %s,%s FROM %s ORDER BY %s DESC";
+	my $st = "SELECT DISTINCT %s,%s FROM %s";
 	my %fields = (
 		pub => ['pid','firstread','chapter','cid','cname','pname',"Manga",'lastreadc','lastreread'],
 		series => ['sid','firstwatch','episode','eid','ename','sname',"Anime",'lastwatched','lastrewatched'],
 	);
 	my $limit = (FIO::config('Recent','reclimit') or 5);
-	$st = "$st LIMIT %d" if ($limit);
 	$limit += 3 if $limit; # allow for 3 duplicates
 	$recent->empty();
 	my $refresher = $recent->insert( SpeedButton => text => "Refresh", onClick => sub { spreadRecent($dbh,$recent); }, enabled => 0);
 	foreach ('series','pub') {
-		my $cmd = sprintf("$st;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$limit);
-#print "Asking database: $cmd\n";
-		my $res = FlexSQL::doQuery(4,$dbh,$cmd);
+		my $timeframe = (FIO::config('Recent','days') or 10);
+		my $rcmd = sprintf("$st WHERE %s > DATE_SUB(CURDATE(),INTERVAL $timeframe DAY) ORDER BY %s DESC LIMIT %d;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$fields{$_}[1],$limit);
+		my $cmd = sprintf("$st ORDER BY %s DESC LIMIT %d;",$fields{$_}[0],$fields{$_}[1],$fields{$_}[2],$fields{$_}[1],$limit);
+# print "Asking database: $cmd\n";
+		my $res = FlexSQL::doQuery(4,$dbh,$rcmd);
+		(scalar @$res or ($res = FlexSQL::doQuery(4,$dbh,$cmd)));
 		if ($res) {
 			$recent->insert( Label => text => "$fields{$_}[6] Activity", font => applyFont('head'), alignment => ta::Left, pack => {fill => 'x'}, autoHeight => 1);
 			my $key = $_;
@@ -1218,10 +1224,13 @@ sub spreadRecent {
 					next;
 				}
 				my ($bars,$frames,$max,$tname,$tprog,$status,$tid,$rated) = ([],20,$$subres{$$_[0]}{$fields{$key}[2] . "s"},$$subres{$$_[0]}{$fields{$key}[5]},$$subres{$$_[0]}{($$subres{$$_[0]}{status} == 3 ? $fields{$key}[8] : $fields{$key}[7])},$$subres{$$_[0]}{status},$$_[0],$$subres{$$_[0]}{score});
+				my $shorttitle = Common::shorten($tname,25);
 				print "$tname was last active on $date.\n" if (FIO::config('Debug','v'));
-				my $lab = $recent->insert( Label => text => "$date: $tname", alignment => ta::Left, pack => {fill => 'x'});
+				my $ifdate = (FIO::config('Recent','showdate') ? "($date)" : "");
 				my $row = $recent->insert( HBox => name => "$$_[0] row", alignment => ta::Left, pack => {fill => 'x', expand => 0}, ipady => 1, pady => 4, );
 				my $barbox = $row->insert( HBox => name => "$$_[0] bars", alignment => ta::Left, pack => {fill => 'x', expand => 1}, ipady => 1, pady => 1, );
+#				$row->insert( Widget => name => 'spacer', pack => {fill => 'x', expand => 1, }, sizeMax => [1000,10]);
+				my $lab = $row->insert( Label => text => "$ifdate: $shorttitle", alignment => ta::Left, pack => {fill => 'none'}, hint => "$tname\nLast watched on $date");
 				$cmd = sprintf("SELECT %s,score,%s FROM %s WHERE %s=? ORDER BY %s ASC;",$fields{$key}[3],$fields{$key}[4],$fields{$key}[2],$fields{$key}[0],$fields{$key}[3]);
 				$subres = FlexSQL::doQuery(4,$dbh,$cmd,$tid);
 				my ($scores,$suggested) = (0,0);
@@ -1236,16 +1245,15 @@ sub spreadRecent {
 							$barbox->insert( Label => text => $s, hint => "$k ($n)", margin => 2);
 						}
 					}
-					$lab->text("($date) $tname - Total: $suggested" );
+					$lab->text(sprintf("%s %s - Total: %02d",$ifdate,$shorttitle,$suggested));
 				} else {
 					warn "Something went wrong with the query: $dbh->errstr";
 				}
-				$row->insert( Widget => name => 'spacer', pack => {fill => 'x', expand => 1, }, sizeMax => [1000,10]);
 				my $uform = ($key eq "series" ? ($status == 3 ? 1 : 0 ) : ($status == 3 ? 3 : 2 ) );
 				unless ($status == 4 or $tprog >= $max) {
 					$tprog++;
 					$row->insert( SpeedButton =>
-						text => "Watch $fields{$key}[2] $tprog",
+						text => sprintf("Watch %s %02d",$fields{$key}[2],$tprog),
 						onClick => sub {
 							my $prog = incrementPortion($_[0],undef,$uform,$tid,$tname,$dbh,0);
 							# pull new part from part table
@@ -1256,7 +1264,7 @@ sub spreadRecent {
 							# update total
 #							$lab->text("($date) $tname - Total: $suggested" );
 							$prog++;
-							$_[0]->text("Watch $fields{$key}[2] $prog");
+							$_[0]->text(sprintf("Watch %s %02d",$fields{$key}[2],$prog));
 						},
 #						sizeMin => [100,15],
 					);

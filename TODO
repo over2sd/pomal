@@ -32,7 +32,9 @@ Export/Import of episode data
 FIX PGUI:1285 marked text error
 FIX PGUI:624 target error (add anime)
 = Option: UI,notabs - tabs no longer work properly on my machine (not sure if this is an error in my new config or in Prima), so I need to make an option for not using the notebook container. Also, scrolled notebook tabs sometimes don't scroll all the way to the bottom, which would also be eliminated by an option that doesn't use them.
-Notabs UI for Options dialog, too.
+= Notabs UI for Options dialog, too.
+= Episodes export stores episodes with their show, with its score, in case reimport from showlist is needed, to make import work properly.
+FIX FIO: File chooser dialog.
 
 v0.2:
 -----

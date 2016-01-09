@@ -314,5 +314,6 @@ die "An unhandled error $error occurred during getNewID.\n"; # Replace with actu
 }
 print ".";
 
+FIO::config('DB','FlexSQLisloaded',1); # mark config that I've been loaded, so PGK will use DB functions.
 print " OK; ";
 1;

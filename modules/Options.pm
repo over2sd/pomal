@@ -57,7 +57,7 @@ sub mkOptBox {
 			if (defined $curtab) { $curtab->insert( Label => text => " - - - ", pack => { fill => 'both', expand => 1, }, ); }
 			$curtab = $pages->insert_to_page($page,VBox => name => 'page$page', pack => { fill => "both", expand => 1 }, ); # make a vbox to put all the options in a given Section in
 			my $l = $curtab->insert( Label => text => $o[1] ); # for each section, make a notebook page
-#			$curtab = PGUI::labelBox($pages,$o[1],$o[2],'v');
+#			$curtab = PGK::labelBox($pages,$o[1],$o[2],'v');
 			$section = $o[2];
 			$page++;
 		}elsif (defined $section and defined $curtab) { # not first option in list
@@ -191,13 +191,13 @@ sub saveFromOpt {
 			config($s,$_,($$href{$s}{$_} or 0));
 		}
 	}
-	my $status = PGUI::getGUI("status");
+	my $status = PGK::getGUI("status");
 	FIO::saveConf();
 	$status->push("Options applied.");
 	$window->destroy();
 	# TODO: check here to see if something potentially crash-inducing has been changed, and shut down cleanly, instead, after informing user that a restart is required.
 	formatTooltips(); # set tooltip format, in case it was changed.
-	PGK::refreshUI(PGUI::getGUI(),FlexSQL::getDB()); # refresh the UI
+	PGK::refreshUI(PGK::getGUI(),FlexSQL::getDB()); # refresh the UI
 }
 print ".";
 
